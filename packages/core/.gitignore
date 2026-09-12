@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# untracked files
+todo.md
+.env
+
 # Distribution / packaging
 .Python
 build/

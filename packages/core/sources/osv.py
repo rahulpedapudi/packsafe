@@ -1,5 +1,7 @@
 import asyncio
+
 import httpx
+
 from ..config import settings
 
 
@@ -13,7 +15,7 @@ async def fetch_package_osv(package_name: str, version: str, ecosystem: str):
                     "ecosystem": ecosystem,
                 },
                 "version": version,
-            }
+            },
         )
 
         res.raise_for_status()

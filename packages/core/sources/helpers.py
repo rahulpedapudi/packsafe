@@ -10,9 +10,14 @@ def parse_deps(dependencies: list[str]) -> list[dict]:
 
     for dep in dependencies:
         req = Requirement(dep)
-        result.append({
-            "name": req.name,
-            "specifier": str(req.specifier),
-        })
+        result.append(
+            {
+                "name": req.name,
+                "specifier": str(req.specifier),
+            }
+        )
 
     return result
+
+
+def check_existence(package_name: str): ...

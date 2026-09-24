@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -14,6 +17,7 @@ from ...core.pipeline.analysis import AnalysisPipeline
 
 app = typer.Typer()
 console = Console()
+logger = logging.getLogger(__name__)
 
 
 @app.command()
@@ -26,11 +30,13 @@ def analyze(package_name: str):
             f"[bold cyan]Analyzing package[/bold cyan] [bold green]{req.name}[/bold green]...",
             spinner="dots",
         ):
+            logger.info(f"Analyzing Package - {package_name}")
             # initializes analysis pipeline
             pipeline = AnalysisPipeline()
 
             # pipeline return analysis context which contains the infomation accumulated during the analysis
-            context = pipeline.run(req)
+            # running in an event loop because the pipeline is async
+            context = asyncio.run(pipeline.run(req))
 
         # TODO: if package is not found, suggest alternative packages instead of just showing error and exiting; this should be interactive.
         if not context.package or not context.package.exists:

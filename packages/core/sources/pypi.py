@@ -1,3 +1,5 @@
+import logging
+import time
 from datetime import datetime
 
 import httpx
@@ -6,22 +8,41 @@ from ..config import settings
 from ..models.package import PackageMetadata, PackageRequest
 from .helpers import parse_deps
 
+logger = logging.getLogger(__name__)
+
 
 class PyPIRegistry:
     # same signature as PackageRegistry's exists() method
-    def exists(self, package: PackageRequest) -> tuple[bool, PackageMetadata | None]:
-        try:
-            response = httpx.get(
-                f"{settings.pypi_base_url}/{package.name}/json", timeout=5
-            )
+    async def exists(
+        self, package: PackageRequest
+    ) -> tuple[bool, PackageMetadata | None]:
+        start = time.perf_counter()
+        logger.info(f"Checking PyPI Registry for {package}")
 
-            if response.status_code == 200:
-                return (True, self.extract_metadata(response.json()))
-            else:
-                return (False, None)
+        try:
+            async with httpx.AsyncClient() as client:
+                network_start = time.perf_counter()
+                response = await client.get(
+                    f"{settings.PYPI_BASE_URL}/{package.name}/json", timeout=5
+                )
+                network_elapsed = time.perf_counter() - network_start
+
+                logger.info(
+                    f"Network Call Completed in {network_elapsed:.2f} seconds | {network_elapsed * 1000:.2f} ms"
+                )
+
+                if response.status_code == 200:
+                    return (True, self.extract_metadata(response.json()))
+                else:
+                    return (False, None)
 
         except httpx.HTTPError as e:
             raise httpx.HTTPError(f"Could not fetch the data from pypi: {e}")
+        finally:
+            elapsed = time.perf_counter() - start
+            logger.info(
+                f"Checking PyPI Registry Completed in {elapsed:.2f} seconds | {elapsed * 1000:.2f} ms"
+            )
 
     def extract_metadata(self, data: dict) -> PackageMetadata:
         info = data.get("info", {})
@@ -72,3 +93,5 @@ class PyPIRegistry:
             last_release_date=last_release_date,
             initial_release_date=initial_release_date,
         )
+
+    async def get_stats(self, package: PackageRequest): ...

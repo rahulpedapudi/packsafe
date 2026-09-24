@@ -9,12 +9,12 @@ class ExistenceStage:
         # it doesnt need to know what registry its working with
         self.registry = registry
 
-    def execute(self, context: AnalysisContext) -> None:
+    async def execute(self, context: AnalysisContext) -> None:
 
         requested_package = context.request
 
         # checks for package existence
-        exists, metadata = self.registry.exists(requested_package)
+        exists, metadata = await self.registry.exists(requested_package)
 
         # accumulates context with package info
         context.package = PackageInfo(

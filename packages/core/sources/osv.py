@@ -8,7 +8,7 @@ from ..config import settings
 async def fetch_package_osv(package_name: str, version: str, ecosystem: str):
     async with httpx.AsyncClient() as client:
         res = await client.post(
-            url=settings.osv_base_url,
+            url=settings.OSV_BASE_URL,
             json={
                 "package": {
                     "name": package_name,

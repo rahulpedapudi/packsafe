@@ -21,3 +21,11 @@ class RegistryAPIError(PackageAnalysisError):
 
 class InvalidPackageDataError(PackageAnalysisError):
     """Raised when payload parsing fails due to unexpected format."""
+
+
+class ApplicationError(Exception):
+    """Base exception for all application level errors"""
+
+
+class InitializationError(ApplicationError):
+    """Raised when Initial Setup is failed"""

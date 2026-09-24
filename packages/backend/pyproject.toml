@@ -8,6 +8,12 @@ dependencies = [
     "uvicorn>=0.30",
     "sqlalchemy>=2.0",
     "asyncpg>=0.29",
+    "python-dotenv>=1.2.3",
+    "google-cloud-bigquery>=3.45.0",
+    "pandas>=3.0.5",
+    "db-dtypes>=1.7.1",
+    "google-cloud-bigquery-storage>=2.41.0",
+    "pyarrow>=25.0.1",
 ]
 
 [tool.uv.sources]

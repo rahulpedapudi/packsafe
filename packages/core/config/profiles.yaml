@@ -1,0 +1,53 @@
+profiles:
+  permissive:
+    name: Permissive
+    description: Permissive policy that blocks only hard gates and warns below score
+      40
+    block_on_gates: true
+    warn_score_threshold: 40.0
+    block_score_threshold: 0.0
+  balanced:
+    name: Balanced
+    description: Default balanced policy balancing security and developer ergonomics
+    block_on_gates: true
+    warn_score_threshold: 60.0
+    block_score_threshold: 0.0
+    warn_on_risks:
+    - HIGH
+    - CRITICAL
+  strict:
+    name: Strict
+    description: Strict security policy blocking moderate-to-critical risk packages
+    block_on_gates: true
+    warn_score_threshold: 90.0
+    block_score_threshold: 75.0
+    block_on_risks:
+    - MODERATE
+    - HIGH
+    - CRITICAL
+  enterprise:
+    name: Enterprise
+    description: Enterprise compliance policy with list management, license rules,
+      and thresholds
+    block_on_gates: true
+    minimum_score: 80.0
+    maximum_vulnerability_severity: HIGH
+    blocked_packages: []
+    approved_packages: []
+    allowed_licenses:
+    - MIT
+    - Apache-2.0
+    - BSD-2-Clause
+    - BSD-3-Clause
+    - ISC
+    - Python-2.0
+    - CC0-1.0
+    - Unlicense
+    restricted_licenses:
+    - GPL-3.0
+    - GPL-2.0
+    - AGPL-3.0
+    - SSPL-1.0
+    allowed_ecosystems:
+    - pypi
+    - npm

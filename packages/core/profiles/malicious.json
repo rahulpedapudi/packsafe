@@ -1,0 +1,61 @@
+{
+  "package": {
+    "name": "fake-colorama",
+    "ecosystem": "pypi",
+    "version": "0.4.9",
+    "repository_url": "https://github.com/fake/colorama"
+  },
+  "registry": {
+    "downloads_30d": 500000,
+    "download_growth_rate": 0.50,
+    "release_count_1y": 1,
+    "release_count_3m": 1,
+    "days_since_last_release": 5,
+    "project_maturity_days": 10,
+    "maintainer_count": 1,
+    "declared_license": "MIT"
+  },
+  "repository": {
+    "stars": 12,
+    "forks": 1,
+    "watchers": 1,
+    "recent_commits_90d": 2,
+    "recent_issues_90d": 0,
+    "is_archived": false
+  },
+  "vulnerabilities": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "dependencies": {
+    "direct_count": 0,
+    "transitive_count": 0,
+    "max_depth": 0,
+    "abandoned_count": 0,
+    "new_dependencies_count": 0,
+    "churn_rate": 0.0,
+    "vulnerable_dependency_count": 0
+  },
+  "static_analysis": {
+    "findings": [
+      {
+        "type": "CONFIRMED_MALICIOUS",
+        "severity": "CRITICAL",
+        "confidence": 0.99,
+        "title": "Known Trojan Stealer Payload",
+        "description": "Embedded obfuscated payload matches known info-stealer malware signature",
+        "evidence": "setup.py:line 12 base64 payload",
+        "file_path": "setup.py",
+        "line": 12
+      }
+    ]
+  },
+  "identity": {
+    "name_similarity": 0.95,
+    "typosquatting_risk": 0.85
+  },
+  "license": {
+    "spdx_id": "MIT"
+  },
+  "analysis_coverage_tier": "deep_static"
+}

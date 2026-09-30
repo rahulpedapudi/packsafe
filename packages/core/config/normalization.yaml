@@ -1,0 +1,40 @@
+dependencies:
+  direct_scale: 20.0
+  transitive_scale: 100.0
+  depth_scale: 5.0
+maintenance:
+  decay_days: 365.0
+  release_year_scale: 12.0
+  release_3m_scale: 3.0
+  commit_scale: 50.0
+  issue_scale: 20.0
+  maturity_scale: 730.0
+adoption:
+  downloads_scale: 14.0
+  dependents_scale: 8.0
+  stars_scale: 10.0
+  forks_scale: 8.0
+  watchers_scale: 6.0
+  growth_midpoint: 0.0
+  growth_slope: 5.0
+vulnerability_factors:
+  severity:
+    CRITICAL: 1.0
+    HIGH: 0.7
+    MEDIUM: 0.35
+    LOW: 0.1
+    UNKNOWN: 0.4
+  exploitability:
+    KNOWN_EXPLOIT: 1.0
+    PUBLIC_EXPLOIT: 0.9
+    HIGH: 0.7
+    UNKNOWN: 0.5
+    LOW: 0.3
+  exposure:
+    DIRECT: 1.0
+    TRANSITIVE_D1: 0.8
+    TRANSITIVE_D2: 0.6
+    TRANSITIVE_D3: 0.4
+  exploitation:
+    ACTIVELY_EXPLOITED: 1.0
+    NOT_KNOWN_EXPLOITED: 0.25

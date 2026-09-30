@@ -1,0 +1,50 @@
+{
+  "package": {
+    "name": "requests",
+    "ecosystem": "pypi",
+    "version": "2.32.5",
+    "repository_url": "https://github.com/psf/requests"
+  },
+  "registry": {
+    "downloads_30d": 50000000,
+    "download_growth_rate": 0.08,
+    "release_count_1y": 4,
+    "release_count_3m": 1,
+    "days_since_last_release": 25,
+    "project_maturity_days": 4000,
+    "maintainer_count": 5,
+    "declared_license": "Apache-2.0"
+  },
+  "repository": {
+    "stars": 51000,
+    "forks": 9200,
+    "watchers": 1400,
+    "recent_commits_90d": 45,
+    "recent_issues_90d": 30,
+    "is_archived": false
+  },
+  "vulnerabilities": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "dependencies": {
+    "direct_count": 4,
+    "transitive_count": 8,
+    "max_depth": 2,
+    "abandoned_count": 0,
+    "new_dependencies_count": 0,
+    "churn_rate": 0.0,
+    "vulnerable_dependency_count": 0
+  },
+  "static_analysis": {
+    "findings": []
+  },
+  "identity": {
+    "name_similarity": 0.0,
+    "typosquatting_risk": 0.0
+  },
+  "license": {
+    "spdx_id": "Apache-2.0"
+  },
+  "analysis_coverage_tier": "deep_static"
+}

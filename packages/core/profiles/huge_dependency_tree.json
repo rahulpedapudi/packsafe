@@ -1,0 +1,50 @@
+{
+  "package": {
+    "name": "huge-framework",
+    "ecosystem": "pypi",
+    "version": "10.0.0",
+    "repository_url": "https://github.com/framework/huge"
+  },
+  "registry": {
+    "downloads_30d": 2000000,
+    "download_growth_rate": 0.05,
+    "release_count_1y": 8,
+    "release_count_3m": 2,
+    "days_since_last_release": 20,
+    "project_maturity_days": 1800,
+    "maintainer_count": 12,
+    "declared_license": "Apache-2.0"
+  },
+  "repository": {
+    "stars": 8000,
+    "forks": 1200,
+    "watchers": 300,
+    "recent_commits_90d": 60,
+    "recent_issues_90d": 35,
+    "is_archived": false
+  },
+  "vulnerabilities": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "dependencies": {
+    "direct_count": 85,
+    "transitive_count": 1000,
+    "max_depth": 12,
+    "abandoned_count": 5,
+    "new_dependencies_count": 10,
+    "churn_rate": 0.15,
+    "vulnerable_dependency_count": 0
+  },
+  "static_analysis": {
+    "findings": []
+  },
+  "identity": {
+    "name_similarity": 0.0,
+    "typosquatting_risk": 0.0
+  },
+  "license": {
+    "spdx_id": "Apache-2.0"
+  },
+  "analysis_coverage_tier": "deep_static"
+}

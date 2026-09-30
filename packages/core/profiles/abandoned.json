@@ -1,0 +1,50 @@
+{
+  "package": {
+    "name": "old-parser",
+    "ecosystem": "pypi",
+    "version": "1.0.0",
+    "repository_url": "https://github.com/old/parser"
+  },
+  "registry": {
+    "downloads_30d": 1500,
+    "download_growth_rate": -0.10,
+    "release_count_1y": 0,
+    "release_count_3m": 0,
+    "days_since_last_release": 1500,
+    "project_maturity_days": 2000,
+    "maintainer_count": 1,
+    "declared_license": "MIT"
+  },
+  "repository": {
+    "stars": 120,
+    "forks": 15,
+    "watchers": 5,
+    "recent_commits_90d": 0,
+    "recent_issues_90d": 0,
+    "is_archived": true
+  },
+  "vulnerabilities": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "dependencies": {
+    "direct_count": 2,
+    "transitive_count": 4,
+    "max_depth": 1,
+    "abandoned_count": 1,
+    "new_dependencies_count": 0,
+    "churn_rate": 0.0,
+    "vulnerable_dependency_count": 0
+  },
+  "static_analysis": {
+    "findings": []
+  },
+  "identity": {
+    "name_similarity": 0.0,
+    "typosquatting_risk": 0.0
+  },
+  "license": {
+    "spdx_id": "MIT"
+  },
+  "analysis_coverage_tier": "deep_static"
+}

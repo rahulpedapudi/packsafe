@@ -1,0 +1,17 @@
+# Evidence Source Reliability & Analysis Coverage Tiers
+source_reliability:
+  osv: 1.00
+  registry: 0.98
+  github: 0.95
+  deps_dev: 0.92
+  static_analysis: 0.90
+  advisories: 1.00
+  identity: 0.90
+  archive: 0.95
+  heuristic: 0.80
+
+analysis_coverage_tiers:
+  metadata_only: 0.50
+  registry_osv: 0.70
+  registry_osv_repository: 0.85
+  deep_static: 1.00

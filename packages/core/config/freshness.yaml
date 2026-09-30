@@ -1,0 +1,9 @@
+# Evidence Freshness and Time-To-Live (TTL) Configuration
+freshness_ttl_hours:
+  osv: 6
+  registry: 24
+  github: 24
+  downloads: 24
+  deps_dev: 12
+  identity: 24
+  static_analysis: null  # Immutable per archive SHA-256

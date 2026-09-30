@@ -18,6 +18,3 @@ def parse_deps(dependencies: list[str]) -> list[dict]:
         )
 
     return result
-
-
-def check_existence(package_name: str): ...

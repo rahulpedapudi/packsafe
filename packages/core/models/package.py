@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import Enum
 
 
@@ -22,7 +22,7 @@ class PackageMetadata:
 @dataclass
 class PackageRequest:
     name: str
-    ecosystem: EcosystemType = "pypi"
+    ecosystem: EcosystemType = EcosystemType.pypi
     version: str | None = None
 
 
@@ -30,6 +30,6 @@ class PackageRequest:
 class PackageInfo:
     name: str
     exists: bool
-    ecosystem: EcosystemType = "pypi"
+    ecosystem: EcosystemType = EcosystemType.pypi
     version: str | None = None
     metadata: PackageMetadata | None = None

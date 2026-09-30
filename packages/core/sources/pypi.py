@@ -94,4 +94,5 @@ class PyPIRegistry:
             initial_release_date=initial_release_date,
         )
 
+    # fetch stats from packsafe backend server
     async def get_stats(self, package: PackageRequest): ...

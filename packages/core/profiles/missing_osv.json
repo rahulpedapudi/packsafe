@@ -1,0 +1,50 @@
+{
+  "package": {
+    "name": "offline-scanned",
+    "ecosystem": "pypi",
+    "version": "3.0.0",
+    "repository_url": "https://github.com/offline/scanned"
+  },
+  "registry": {
+    "downloads_30d": 200000,
+    "download_growth_rate": 0.05,
+    "release_count_1y": 5,
+    "release_count_3m": 1,
+    "days_since_last_release": 20,
+    "project_maturity_days": 1000,
+    "maintainer_count": 3,
+    "declared_license": "Apache-2.0"
+  },
+  "repository": {
+    "stars": 1500,
+    "forks": 180,
+    "watchers": 40,
+    "recent_commits_90d": 25,
+    "recent_issues_90d": 10,
+    "is_archived": false
+  },
+  "vulnerabilities": {
+    "status": "MISSING",
+    "items": []
+  },
+  "dependencies": {
+    "direct_count": 3,
+    "transitive_count": 5,
+    "max_depth": 1,
+    "abandoned_count": 0,
+    "new_dependencies_count": 0,
+    "churn_rate": 0.0,
+    "vulnerable_dependency_count": 0
+  },
+  "static_analysis": {
+    "findings": []
+  },
+  "identity": {
+    "name_similarity": 0.0,
+    "typosquatting_risk": 0.0
+  },
+  "license": {
+    "spdx_id": "Apache-2.0"
+  },
+  "analysis_coverage_tier": "registry_osv_repository"
+}

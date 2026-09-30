@@ -1,0 +1,55 @@
+# Security Gates Configuration
+# Evaluated strictly in order of priority (lower number = evaluated earlier)
+# Hard gates override weighted BaseScore and set final_score <= score_floor
+gates:
+  - id: "GATE-MALWARE"
+    priority: 1
+    name: "Confirmed Malicious Package"
+    severity: "critical"
+    action: "BLOCK"
+    score_floor: 5.0
+    description: "Package is confirmed malware or matched by a known malicious advisory"
+
+  - id: "GATE-ACTIVE-CRITICAL"
+    priority: 2
+    name: "Active Critical Vulnerability Exploitation"
+    severity: "critical"
+    action: "BLOCK"
+    score_floor: 5.0
+    description: "Package has a critical vulnerability that is actively exploited in the wild"
+
+  - id: "GATE-CREDENTIAL-THEFT"
+    priority: 3
+    name: "Credential or Secret Exfiltration"
+    severity: "critical"
+    action: "BLOCK"
+    score_floor: 5.0
+    min_confidence: 0.85
+    description: "High-confidence detection of credential, token, or environment secret theft"
+
+  - id: "GATE-REMOTE-EXEC"
+    priority: 4
+    name: "Remote Payload Download and Execution"
+    severity: "critical"
+    action: "BLOCK"
+    score_floor: 5.0
+    min_confidence: 0.85
+    description: "Package setup or install script downloads and executes external code"
+
+  - id: "GATE-INSTALL-MALWARE"
+    priority: 5
+    name: "Malicious Installation Behavior"
+    severity: "critical"
+    action: "BLOCK"
+    score_floor: 5.0
+    min_confidence: 0.85
+    description: "Installation hooks exhibit destructive, rootkit, or persistent execution"
+
+  - id: "GATE-SUSPICIOUS-WARN"
+    priority: 6
+    name: "Suspicious Behavior Warning"
+    severity: "warning"
+    action: "WARN"
+    score_floor: null
+    min_confidence: 0.50
+    description: "Anomalous or suspicious patterns detected with moderate confidence"

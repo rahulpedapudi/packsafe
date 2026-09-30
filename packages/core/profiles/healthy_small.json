@@ -1,0 +1,50 @@
+{
+  "package": {
+    "name": "micro-logger",
+    "ecosystem": "pypi",
+    "version": "0.4.1",
+    "repository_url": "https://github.com/dev/micro-logger"
+  },
+  "registry": {
+    "downloads_30d": 850,
+    "download_growth_rate": 0.02,
+    "release_count_1y": 3,
+    "release_count_3m": 1,
+    "days_since_last_release": 40,
+    "project_maturity_days": 350,
+    "maintainer_count": 1,
+    "declared_license": "MIT"
+  },
+  "repository": {
+    "stars": 25,
+    "forks": 4,
+    "watchers": 3,
+    "recent_commits_90d": 12,
+    "recent_issues_90d": 3,
+    "is_archived": false
+  },
+  "vulnerabilities": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "dependencies": {
+    "direct_count": 1,
+    "transitive_count": 2,
+    "max_depth": 1,
+    "abandoned_count": 0,
+    "new_dependencies_count": 0,
+    "churn_rate": 0.0,
+    "vulnerable_dependency_count": 0
+  },
+  "static_analysis": {
+    "findings": []
+  },
+  "identity": {
+    "name_similarity": 0.0,
+    "typosquatting_risk": 0.0
+  },
+  "license": {
+    "spdx_id": "MIT"
+  },
+  "analysis_coverage_tier": "deep_static"
+}

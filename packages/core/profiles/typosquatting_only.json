@@ -1,0 +1,53 @@
+{
+  "package": {
+    "name": "reqeusts",
+    "ecosystem": "pypi",
+    "version": "0.1.0",
+    "repository_url": "https://github.com/someone/reqeusts"
+  },
+  "registry": {
+    "downloads_30d": 40,
+    "download_growth_rate": 0.0,
+    "release_count_1y": 1,
+    "release_count_3m": 1,
+    "days_since_last_release": 10,
+    "project_maturity_days": 12,
+    "maintainer_count": 1,
+    "declared_license": "MIT"
+  },
+  "repository": {
+    "stars": 1,
+    "forks": 0,
+    "watchers": 0,
+    "recent_commits_90d": 3,
+    "recent_issues_90d": 0,
+    "is_archived": false
+  },
+  "vulnerabilities": {
+    "status": "AVAILABLE",
+    "items": []
+  },
+  "dependencies": {
+    "direct_count": 1,
+    "transitive_count": 1,
+    "max_depth": 1,
+    "abandoned_count": 0,
+    "new_dependencies_count": 0,
+    "churn_rate": 0.0,
+    "vulnerable_dependency_count": 0
+  },
+  "static_analysis": {
+    "findings": []
+  },
+  "identity": {
+    "target_popular_package": "requests",
+    "name_similarity": 0.98,
+    "context_risk": 0.75,
+    "typosquatting_risk": 0.735,
+    "publisher_anomaly_score": 0.50
+  },
+  "license": {
+    "spdx_id": "MIT"
+  },
+  "analysis_coverage_tier": "deep_static"
+}

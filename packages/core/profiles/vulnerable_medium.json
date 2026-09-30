@@ -1,0 +1,61 @@
+{
+  "package": {
+    "name": "web-helper",
+    "ecosystem": "pypi",
+    "version": "1.4.0",
+    "repository_url": "https://github.com/web/helper"
+  },
+  "registry": {
+    "downloads_30d": 45000,
+    "download_growth_rate": 0.05,
+    "release_count_1y": 3,
+    "release_count_3m": 1,
+    "days_since_last_release": 50,
+    "project_maturity_days": 800,
+    "maintainer_count": 2,
+    "declared_license": "MIT"
+  },
+  "repository": {
+    "stars": 450,
+    "forks": 60,
+    "watchers": 20,
+    "recent_commits_90d": 15,
+    "recent_issues_90d": 5,
+    "is_archived": false
+  },
+  "vulnerabilities": {
+    "status": "AVAILABLE",
+    "items": [
+      {
+        "id": "GHSA-medium-001",
+        "severity": "MEDIUM",
+        "exploitability": 0.5,
+        "exposure": 1.0,
+        "actively_exploited": false,
+        "affected_ranges": ["<= 1.4.0"],
+        "fixed_versions": ["1.4.1"],
+        "summary": "Improper input sanitization in header processing"
+      }
+    ]
+  },
+  "dependencies": {
+    "direct_count": 3,
+    "transitive_count": 6,
+    "max_depth": 2,
+    "abandoned_count": 0,
+    "new_dependencies_count": 0,
+    "churn_rate": 0.0,
+    "vulnerable_dependency_count": 0
+  },
+  "static_analysis": {
+    "findings": []
+  },
+  "identity": {
+    "name_similarity": 0.0,
+    "typosquatting_risk": 0.0
+  },
+  "license": {
+    "spdx_id": "MIT"
+  },
+  "analysis_coverage_tier": "deep_static"
+}

@@ -1,0 +1,24 @@
+{
+  "dictionary_version": "1.0.0",
+  "generated_at": "2026-09-14T00:00:00Z",
+  "ecosystems": ["pypi", "npm"],
+  "pypi": [
+    "requests", "urllib3", "certifi", "charset-normalizer", "idna", "setuptools", "wheel",
+    "pip", "typing-extensions", "packaging", "six", "pyyaml", "cryptography", "numpy",
+    "pandas", "pytest", "click", "pydantic", "jinja2", "markupsafe", "attrs", "pluggy",
+    "virtualenv", "cffi", "pycparser", "scipy", "scikit-learn", "torch", "tensorflow",
+    "matplotlib", "flask", "django", "fastapi", "uvicorn", "starlette", "httpx", "aiohttp",
+    "black", "flake8", "mypy", "boto3", "botocore", "rsa", "pyasn1", "google-api-python-client",
+    "google-auth", "protobuf", "grpcio", "tqdm", "colorama", "pytz", "python-dateutil",
+    "importlib-metadata", "zipp", "filelock", "platformdirs", "distlib", "psutil",
+    "celery", "redis", "beautifulsoup4", "pillow", "sqlalchemy", "twilio", "stripe"
+  ],
+  "npm": [
+    "lodash", "chalk", "request", "express", "react", "react-dom", "async", "commander",
+    "moment", "bluebird", "debug", "mkdirp", "glob", "fs-extra", "prop-types", "axios",
+    "tslib", "rxjs", "uuid", "yargs", "semver", "minimist", "webpack", "babel-core",
+    "core-js", "dotenv", "colors", "inquirer", "ws", "path", "url", "http", "events",
+    "chokidar", "body-parser", "cors", "mongoose", "jsonwebtoken", "bcrypt", "dotenv-expand",
+    "typescript", "next", "vue", "eslint", "prettier", "jest", "postcss", "tailwindcss"
+  ]
+}

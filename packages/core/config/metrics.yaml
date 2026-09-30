@@ -1,0 +1,515 @@
+metrics:
+- affects_categories:
+  - security
+  category: security
+  direction: negative
+  explanation_template: Combined vulnerability risk score from all applicable advisories
+  missing_policy: exclude
+  name: vulnerability_combined_risk
+  normalization: vulnerability_risk
+  normalization_params: {}
+  required_evidence:
+  - osv
+  stale_policy: penalize_confidence
+  weight: 40.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Confirmed malware signature or advisory finding
+  missing_policy: exclude
+  name: confirmed_malicious_behavior
+  normalization: boolean_bad
+  normalization_params: {}
+  required_evidence:
+  - static_analysis
+  - advisories
+  stale_policy: penalize_confidence
+  weight: 15.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Harvesting or exfiltration of credentials or environment secrets
+  missing_policy: exclude
+  name: credential_secret_access
+  normalization: exponential_bad
+  normalization_params:
+    scale: 1.5
+  required_evidence:
+  - static_analysis
+  stale_policy: penalize_confidence
+  weight: 10.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Suspicious execution during installation or package setup
+  missing_policy: exclude
+  name: suspicious_install_behavior
+  normalization: exponential_bad
+  normalization_params:
+    scale: 2.0
+  required_evidence:
+  - static_analysis
+  - archive
+  stale_policy: penalize_confidence
+  weight: 8.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Dynamic download of external code or binaries at runtime
+  missing_policy: exclude
+  name: remote_code_download
+  normalization: exponential_bad
+  normalization_params:
+    scale: 2.0
+  required_evidence:
+  - static_analysis
+  stale_policy: penalize_confidence
+  weight: 8.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Name resemblance to popular packages combined with trust anomalies
+  missing_policy: exclude
+  name: typosquatting_risk
+  normalization: linear_bad
+  normalization_params:
+    bad: 1.0
+    good: 0.0
+  required_evidence:
+  - identity
+  stale_policy: penalize_confidence
+  weight: 8.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Discrepancy between repository source and published artifact
+  missing_policy: exclude
+  name: package_repo_mismatch
+  normalization: boolean_bad
+  normalization_params: {}
+  required_evidence:
+  - registry
+  - github
+  stale_policy: penalize_confidence
+  weight: 5.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Invocation of shell or subprocess commands
+  missing_policy: exclude
+  name: shell_process_execution
+  normalization: exponential_bad
+  normalization_params:
+    scale: 3.0
+  required_evidence:
+  - static_analysis
+  stale_policy: penalize_confidence
+  weight: 5.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Dynamic code compilation or execution via eval/exec
+  missing_policy: exclude
+  name: dynamic_code_execution
+  normalization: exponential_bad
+  normalization_params:
+    scale: 3.0
+  required_evidence:
+  - static_analysis
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Obfuscated code, Base64 unpacking, or compressed payloads
+  missing_policy: exclude
+  name: obfuscation_patterns
+  normalization: exponential_bad
+  normalization_params:
+    scale: 2.0
+  required_evidence:
+  - static_analysis
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Direct socket usage, raw IP calls, or suspicious network access
+  missing_policy: exclude
+  name: suspicious_network_behavior
+  normalization: exponential_bad
+  normalization_params:
+    scale: 3.0
+  required_evidence:
+  - static_analysis
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - integrity
+  category: integrity
+  direction: negative
+  explanation_template: Anomalous publisher or maintainer account changes
+  missing_policy: exclude
+  name: publisher_anomaly
+  normalization: linear_bad
+  normalization_params:
+    bad: 1.0
+    good: 0.0
+  required_evidence:
+  - registry
+  stale_policy: penalize_confidence
+  weight: 3.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Total number of direct dependencies
+  missing_policy: exclude
+  name: direct_dependency_count
+  normalization: exponential_bad
+  normalization_params:
+    scale: 20.0
+  required_evidence:
+  - registry
+  - deps_dev
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Total number of transitive dependencies
+  missing_policy: exclude
+  name: transitive_dependency_count
+  normalization: exponential_bad
+  normalization_params:
+    scale: 100.0
+  required_evidence:
+  - deps_dev
+  stale_policy: penalize_confidence
+  weight: 5.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Maximum nesting depth of the dependency tree
+  missing_policy: exclude
+  name: dependency_depth
+  normalization: exponential_bad
+  normalization_params:
+    scale: 5.0
+  required_evidence:
+  - deps_dev
+  stale_policy: penalize_confidence
+  weight: 3.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Structural vulnerability exposure across dependency graph
+  missing_policy: exclude
+  name: dependency_vulnerability_exposure
+  normalization: exponential_bad
+  normalization_params:
+    scale: 3.0
+  required_evidence:
+  - deps_dev
+  - osv
+  stale_policy: penalize_confidence
+  weight: 7.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Number of direct dependencies with known vulnerabilities
+  missing_policy: exclude
+  name: direct_vulnerable_deps
+  normalization: exponential_bad
+  normalization_params:
+    scale: 2.0
+  required_evidence:
+  - deps_dev
+  - osv
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Number of transitive dependencies with known vulnerabilities
+  missing_policy: exclude
+  name: transitive_vulnerable_deps
+  normalization: exponential_bad
+  normalization_params:
+    scale: 5.0
+  required_evidence:
+  - deps_dev
+  - osv
+  stale_policy: penalize_confidence
+  weight: 2.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Archived or abandoned dependencies in dependency tree
+  missing_policy: exclude
+  name: abandoned_dependencies
+  normalization: exponential_bad
+  normalization_params:
+    scale: 3.0
+  required_evidence:
+  - deps_dev
+  - github
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Dependencies added within the last 30 days
+  missing_policy: exclude
+  name: new_dependencies
+  normalization: exponential_bad
+  normalization_params:
+    scale: 5.0
+  required_evidence:
+  - deps_dev
+  stale_policy: penalize_confidence
+  weight: 2.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Churn rate of dependency additions and removals
+  missing_policy: exclude
+  name: dependency_churn
+  normalization: exponential_bad
+  normalization_params:
+    scale: 5.0
+  required_evidence:
+  - deps_dev
+  stale_policy: penalize_confidence
+  weight: 2.0
+- affects_categories:
+  - supply_chain
+  category: supply_chain
+  direction: negative
+  explanation_template: Ecosystem exposure as a target of package confusion
+  missing_policy: exclude
+  name: typosquatting_context
+  normalization: linear_bad
+  normalization_params:
+    bad: 1.0
+    good: 0.0
+  required_evidence:
+  - identity
+  stale_policy: penalize_confidence
+  weight: 5.0
+- affects_categories:
+  - maintenance
+  category: maintenance
+  direction: negative
+  explanation_template: Recency of the latest package release
+  missing_policy: exclude
+  name: days_since_last_release
+  normalization: recency
+  normalization_params:
+    decay_days: 365.0
+  required_evidence:
+  - registry
+  stale_policy: penalize_confidence
+  weight: 6.0
+- affects_categories:
+  - maintenance
+  category: maintenance
+  direction: positive
+  explanation_template: Frequency of releases in the preceding 12 months
+  missing_policy: exclude
+  name: releases_last_year
+  normalization: log_positive
+  normalization_params:
+    scale: 12.0
+  required_evidence:
+  - registry
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - maintenance
+  category: maintenance
+  direction: positive
+  explanation_template: Cadence of releases in the preceding 3 months
+  missing_policy: exclude
+  name: releases_last_3_months
+  normalization: log_positive
+  normalization_params:
+    scale: 3.0
+  required_evidence:
+  - registry
+  stale_policy: penalize_confidence
+  weight: 3.0
+- affects_categories:
+  - maintenance
+  category: maintenance
+  direction: positive
+  explanation_template: Commit activity over the past 90 days
+  missing_policy: exclude
+  name: recent_commits
+  normalization: log_positive
+  normalization_params:
+    scale: 50.0
+  required_evidence:
+  - github
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - maintenance
+  category: maintenance
+  direction: positive
+  explanation_template: Issue resolution and activity over the past 90 days
+  missing_policy: exclude
+  name: recent_issue_activity
+  normalization: log_positive
+  normalization_params:
+    scale: 20.0
+  required_evidence:
+  - github
+  stale_policy: penalize_confidence
+  weight: 2.0
+- affects_categories:
+  - maintenance
+  category: maintenance
+  direction: positive
+  explanation_template: Number of active project maintainers
+  missing_policy: exclude
+  name: maintainer_count
+  normalization: log_positive
+  normalization_params:
+    scale: 5.0
+  required_evidence:
+  - registry
+  - github
+  stale_policy: penalize_confidence
+  weight: 2.0
+- affects_categories:
+  - maintenance
+  category: maintenance
+  direction: negative
+  explanation_template: Repository archival or decommissioned state
+  missing_policy: exclude
+  name: repository_archived
+  normalization: boolean_bad
+  normalization_params: {}
+  required_evidence:
+  - github
+  stale_policy: penalize_confidence
+  weight: 8.0
+- affects_categories:
+  - maintenance
+  category: maintenance
+  direction: positive
+  explanation_template: Project lifespan representing ecosystem maturity
+  missing_policy: exclude
+  name: project_maturity_days
+  normalization: log_positive
+  normalization_params:
+    scale: 730.0
+  required_evidence:
+  - registry
+  stale_policy: penalize_confidence
+  weight: 1.0
+- affects_categories:
+  - adoption
+  category: adoption
+  direction: positive
+  explanation_template: Monthly download volume from the registry
+  missing_policy: exclude
+  name: download_count
+  normalization: adoption
+  normalization_params:
+    scale: 14.0
+  required_evidence:
+  - registry
+  stale_policy: penalize_confidence
+  weight: 7.0
+- affects_categories:
+  - adoption
+  category: adoption
+  direction: positive
+  explanation_template: Monthly percentage growth in download count
+  missing_policy: exclude
+  name: download_growth
+  normalization: sigmoid
+  normalization_params:
+    midpoint: 0.0
+    slope: 5.0
+  required_evidence:
+  - registry
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - adoption
+  category: adoption
+  direction: positive
+  explanation_template: Public projects and repositories depending on this package
+  missing_policy: exclude
+  name: dependents_count
+  normalization: adoption
+  normalization_params:
+    scale: 8.0
+  required_evidence:
+  - deps_dev
+  - github
+  stale_policy: penalize_confidence
+  weight: 4.0
+- affects_categories:
+  - adoption
+  category: adoption
+  direction: positive
+  explanation_template: VCS repository stars
+  missing_policy: exclude
+  name: stars_count
+  normalization: adoption
+  normalization_params:
+    scale: 10.0
+  required_evidence:
+  - github
+  stale_policy: penalize_confidence
+  weight: 1.0
+- affects_categories:
+  - adoption
+  category: adoption
+  direction: positive
+  explanation_template: VCS repository forks
+  missing_policy: exclude
+  name: forks_count
+  normalization: adoption
+  normalization_params:
+    scale: 8.0
+  required_evidence:
+  - github
+  stale_policy: penalize_confidence
+  weight: 1.0
+- affects_categories:
+  - adoption
+  category: adoption
+  direction: positive
+  explanation_template: VCS repository subscribers and watchers
+  missing_policy: exclude
+  name: watchers_count
+  normalization: adoption
+  normalization_params:
+    scale: 6.0
+  required_evidence:
+  - github
+  stale_policy: penalize_confidence
+  weight: 1.0

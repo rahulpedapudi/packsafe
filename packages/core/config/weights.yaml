@@ -1,0 +1,11 @@
+# PackSafe Category Weights Configuration
+# Weights are relative contributions to BaseScore (0-100) and must sum to exactly 1.00
+engine_version: "1.0.0"
+config_version: "2026-09-v1.2"
+
+categories:
+  security: 0.40
+  integrity: 0.25
+  supply_chain: 0.20
+  maintenance: 0.10
+  adoption: 0.05

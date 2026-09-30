@@ -1,0 +1,61 @@
+{
+  "package": {
+    "name": "crypto-signer",
+    "ecosystem": "pypi",
+    "version": "2.0.1",
+    "repository_url": "https://github.com/crypto/signer"
+  },
+  "registry": {
+    "downloads_30d": 100000,
+    "download_growth_rate": 0.05,
+    "release_count_1y": 4,
+    "release_count_3m": 1,
+    "days_since_last_release": 30,
+    "project_maturity_days": 1200,
+    "maintainer_count": 3,
+    "declared_license": "Apache-2.0"
+  },
+  "repository": {
+    "stars": 1200,
+    "forks": 150,
+    "watchers": 45,
+    "recent_commits_90d": 20,
+    "recent_issues_90d": 8,
+    "is_archived": false
+  },
+  "vulnerabilities": {
+    "status": "AVAILABLE",
+    "items": [
+      {
+        "id": "CVE-2024-9999",
+        "severity": "CRITICAL",
+        "exploitability": 0.8,
+        "exposure": 1.0,
+        "actively_exploited": false,
+        "affected_ranges": ["<= 2.0.1"],
+        "fixed_versions": ["2.0.2"],
+        "summary": "Remote code execution via malformed signature packet"
+      }
+    ]
+  },
+  "dependencies": {
+    "direct_count": 2,
+    "transitive_count": 4,
+    "max_depth": 1,
+    "abandoned_count": 0,
+    "new_dependencies_count": 0,
+    "churn_rate": 0.0,
+    "vulnerable_dependency_count": 0
+  },
+  "static_analysis": {
+    "findings": []
+  },
+  "identity": {
+    "name_similarity": 0.0,
+    "typosquatting_risk": 0.0
+  },
+  "license": {
+    "spdx_id": "Apache-2.0"
+  },
+  "analysis_coverage_tier": "deep_static"
+}

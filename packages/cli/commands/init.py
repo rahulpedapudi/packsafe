@@ -1,10 +1,11 @@
+import asyncio
 import logging
-import tomllib
 
 import typer
 from rich.console import Console
 
-from ...core.db.helpers import get_app_path
+from ...core.config import settings
+from ...core.db.database import engine, init_db
 from ...core.exceptions import ApplicationError, InitializationError
 from ..config.config import Config
 from ..display.art import ASCII_ART1
@@ -23,12 +24,15 @@ def init():
     console.print("[bold]Initializing PackSafe[/bold]")
 
     try:
-        app_root = get_app_path()
-        config_file = app_root / "config.toml"
+        app_root = settings.APP_ROOT
+        config_file = settings.APP_CONFIG
+        cache_file = settings.APP_CACHE
+
         config = Config(config_path=config_file)
 
         app_root_exists = app_root.exists()
         config_exists = config_file.exists()
+        cache_exists = cache_file.exists()
 
         with console.status("[green]Preparing PackSafe...", spinner="dots"):
             app_root.mkdir(parents=True, exist_ok=True)
@@ -37,8 +41,13 @@ def init():
                 # creates a default config
                 config.save_default_config()
 
+            if not cache_exists:
+                # creates cache.db file
+                asyncio.run(init_db(engine))
+
         logger.info(f"PackSafe root: {app_root}")
         logger.info(f"PackSafe config: {config_file}")
+        logger.info(f"Packsafe cache: {cache_file}")
 
     except InitializationError as e:
         console.print()
@@ -61,4 +70,5 @@ def init():
 
     console.print()
     console.print(f"[dim]Config:[/dim] {config_file}")
+    console.print(f"[dim]Cache:[/dim] {cache_file}")
     console.print()

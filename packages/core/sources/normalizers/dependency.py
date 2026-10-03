@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
-from packsafe.evidence.models import DependencyEvidence, DependencyItem
+
+from ...models.dependencies import DependencyEvidence, DependencyItem
 
 
 @dataclass
@@ -29,7 +30,9 @@ class DependencyGraph:
         self.edges: dict[str, list[str]] = {}  # parent -> children
         self.detected_cycles: list[tuple[str, str]] = []
 
-    def _is_reachable(self, start: str, target: str, visited: set[str] | None = None) -> bool:
+    def _is_reachable(
+        self, start: str, target: str, visited: set[str] | None = None
+    ) -> bool:
         """Determines if target is reachable from start in the current graph."""
         if visited is None:
             visited = set()
@@ -37,9 +40,10 @@ class DependencyGraph:
             return True
         visited.add(start)
         for neighbor in self.edges.get(start, []):
-            if neighbor not in visited:
-                if self._is_reachable(neighbor, target, visited):
-                    return True
+            if neighbor not in visited and self._is_reachable(
+                neighbor, target, visited
+            ):
+                return True
         return False
 
     def add_dependency(
@@ -75,8 +79,12 @@ class DependencyGraph:
                     depth=depth,
                     is_direct=is_direct,
                     parent=parent,
-                    is_archived=is_archived if is_archived is not None else existing.is_archived,
-                    is_vulnerable=is_vulnerable if is_vulnerable is not None else existing.is_vulnerable,
+                    is_archived=is_archived
+                    if is_archived is not None
+                    else existing.is_archived,
+                    is_vulnerable=is_vulnerable
+                    if is_vulnerable is not None
+                    else existing.is_vulnerable,
                     is_new=is_new if is_new is not None else existing.is_new,
                 )
             return True
@@ -111,8 +119,7 @@ class DependencyGraph:
         has_vuln_info = False
 
         for node in self.nodes.values():
-            if node.depth > max_depth:
-                max_depth = node.depth
+            max_depth = max(max_depth, node.depth)
             if node.is_archived is not None:
                 has_archived_info = True
                 if node.is_archived:

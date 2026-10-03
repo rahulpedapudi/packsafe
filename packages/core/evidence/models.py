@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
 
 
 class EvidenceStatus(str, Enum):
     """Status of an evidence subsystem or collector."""
+
     AVAILABLE = "AVAILABLE"
     MISSING = "MISSING"
     STALE = "STALE"
@@ -20,9 +20,10 @@ class EvidenceStatus(str, Enum):
 @dataclass(frozen=True)
 class PackageRequest:
     """Initial user/API request to analyze a package."""
+
     name: str
     ecosystem: str = "pypi"
-    version: Optional[str] = None
+    version: str | None = None
     scan_type: str = "standard"
     profile: str = "balanced"
 
@@ -30,6 +31,7 @@ class PackageRequest:
 @dataclass(frozen=True)
 class PackageIdentity:
     """Canonical identifier for a package version."""
+
     name: str
     ecosystem: str
     version: str
@@ -42,6 +44,7 @@ class PackageIdentity:
 @dataclass(frozen=True)
 class VulnerabilityItem:
     """Individual vulnerability advisory detail."""
+
     vulnerability_id: str
     aliases: tuple[str, ...] = ()
     severity: str = "UNKNOWN"
@@ -60,16 +63,18 @@ class VulnerabilityItem:
 @dataclass(frozen=True)
 class VulnerabilityEvidence:
     """Collection of vulnerabilities affecting the package."""
+
     items: tuple[VulnerabilityItem, ...] = ()
     status: str = "AVAILABLE"
     osv_queried: bool = True
-    retrieved_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    retrieved_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     notes: str = ""
 
 
 @dataclass(frozen=True)
 class DependencyItem:
     """Individual dependency representation."""
+
     name: str
     version_spec: str = ""
     resolved_version: str | None = None
@@ -85,32 +90,34 @@ class DependencyItem:
 @dataclass(frozen=True)
 class DependencyEvidence:
     """Dependency tree structure and metrics."""
-    direct_count: Optional[int] = None
-    transitive_count: Optional[int] = None
-    max_depth: Optional[int] = None
+
+    direct_count: int | None = None
+    transitive_count: int | None = None
+    max_depth: int | None = None
     direct_dependencies: tuple[DependencyItem, ...] = ()
     transitive_dependencies: tuple[DependencyItem, ...] = ()
-    abandoned_count: Optional[int] = None
-    new_dependencies_count: Optional[int] = None
-    churn_rate: Optional[float] = None
-    vulnerable_dependency_count: Optional[int] = None
+    abandoned_count: int | None = None
+    new_dependencies_count: int | None = None
+    churn_rate: float | None = None
+    vulnerable_dependency_count: int | None = None
     status: str = "AVAILABLE"
 
 
 @dataclass(frozen=True)
 class RegistryEvidence:
     """Package registry metadata (PyPI / npm)."""
+
     published_at: datetime | None = None
     latest_version: str | None = None
-    release_count_1y: Optional[int] = None
-    release_count_3m: Optional[int] = None
-    days_since_last_release: Optional[float] = None
-    project_maturity_days: Optional[float] = None
-    maintainer_count: Optional[int] = None
-    downloads_30d: Optional[int] = None
-    download_growth_rate: Optional[float] = None
-    dependents_count: Optional[int] = None
-    dependents_source: Optional[str] = None
+    release_count_1y: int | None = None
+    release_count_3m: int | None = None
+    days_since_last_release: float | None = None
+    project_maturity_days: float | None = None
+    maintainer_count: int | None = None
+    downloads_30d: int | None = None
+    download_growth_rate: float | None = None
+    dependents_count: int | None = None
+    dependents_source: str | None = None
     declared_license: str | None = None
     status: str = "AVAILABLE"
 
@@ -118,13 +125,14 @@ class RegistryEvidence:
 @dataclass(frozen=True)
 class RepositoryEvidence:
     """VCS repository activity (GitHub / GitLab)."""
+
     repository_url: str | None = None
-    stars: Optional[int] = None
-    forks: Optional[int] = None
-    watchers: Optional[int] = None
-    open_issues: Optional[int] = None
-    recent_commits_90d: Optional[int] = None
-    recent_issues_90d: Optional[int] = None
+    stars: int | None = None
+    forks: int | None = None
+    watchers: int | None = None
+    open_issues: int | None = None
+    recent_commits_90d: int | None = None
+    recent_issues_90d: int | None = None
     is_archived: bool = False
     default_branch: str = "main"
     status: str = "AVAILABLE"
@@ -133,6 +141,7 @@ class RepositoryEvidence:
 @dataclass(frozen=True)
 class StaticAnalysisFindingItem:
     """Static analysis issue candidate."""
+
     finding_type: str
     severity: str
     confidence: float
@@ -146,6 +155,7 @@ class StaticAnalysisFindingItem:
 @dataclass(frozen=True)
 class StaticAnalysisEvidence:
     """Static AST and archive inspection results."""
+
     findings: tuple[StaticAnalysisFindingItem, ...] = ()
     scanned_files_count: int = 0
     archive_sha256: str | None = None
@@ -156,6 +166,7 @@ class StaticAnalysisEvidence:
 @dataclass(frozen=True)
 class LicenseEvidence:
     """License compliance and extraction."""
+
     declared_license: str | None = None
     spdx_id: str = "UNKNOWN"
     is_osi_approved: bool = True
@@ -167,11 +178,12 @@ class LicenseEvidence:
 @dataclass(frozen=True)
 class IdentityEvidence:
     """Package name similarity and publisher identity."""
+
     target_popular_package: str | None = None
-    name_similarity: Optional[float] = None
-    context_risk: Optional[float] = None
-    typosquatting_risk: Optional[float] = None
-    publisher_anomaly_score: Optional[float] = None
+    name_similarity: float | None = None
+    context_risk: float | None = None
+    typosquatting_risk: float | None = None
+    publisher_anomaly_score: float | None = None
     package_repo_mismatch: bool = False
     status: str = "AVAILABLE"
 
@@ -179,9 +191,10 @@ class IdentityEvidence:
 @dataclass(frozen=True)
 class EvidenceProvenance:
     """Audit trail for an evidence component."""
+
     source: str
     source_url: str
-    retrieved_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    retrieved_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     archive_sha256: str | None = None
     collector_version: str = "1.0.0"
 
@@ -189,14 +202,19 @@ class EvidenceProvenance:
 @dataclass(frozen=True)
 class PackageEvidence:
     """Unified immutable package evidence input for the Score Engine."""
+
     package: PackageIdentity
     registry: RegistryEvidence = field(default_factory=RegistryEvidence)
     repository: RepositoryEvidence = field(default_factory=RepositoryEvidence)
-    vulnerabilities: VulnerabilityEvidence = field(default_factory=VulnerabilityEvidence)
+    vulnerabilities: VulnerabilityEvidence = field(
+        default_factory=VulnerabilityEvidence
+    )
     dependencies: DependencyEvidence = field(default_factory=DependencyEvidence)
-    static_analysis: StaticAnalysisEvidence = field(default_factory=StaticAnalysisEvidence)
+    static_analysis: StaticAnalysisEvidence = field(
+        default_factory=StaticAnalysisEvidence
+    )
     identity: IdentityEvidence = field(default_factory=IdentityEvidence)
     license: LicenseEvidence = field(default_factory=LicenseEvidence)
     provenance: tuple[EvidenceProvenance, ...] = ()
-    collected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    collected_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     analysis_coverage_tier: str = "deep_static"

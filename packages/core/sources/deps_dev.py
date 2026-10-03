@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import time
 from typing import Any
+
 import httpx
 
-from packsafe.evidence.models import DependencyEvidence
-from packsafe.evidence.normalization.dependency import DependencyNormalizer
+from ..config import settings
+from ..models.dependencies import DependencyEvidence
+from .normalizers.dependency import DependencyNormalizer
 
 logger = logging.getLogger(__name__)
 
@@ -16,64 +18,69 @@ logger = logging.getLogger(__name__)
 class DepsDevCollector:
     """Collects dependency trees and dependents from Google deps.dev v3 API."""
 
-    BASE_URL = "https://api.deps.dev/v3"
+    BASE_URL = settings.DEPS_URL
 
     def __init__(
         self,
-        base_url: str | None = None,
         timeout: tuple[float, float] = (5.0, 15.0),
         max_retries: int = 2,
-        client: httpx.Client | None = None,
     ) -> None:
-        self.base_url = base_url or self.BASE_URL
-        self.timeout = httpx.Timeout(connect=timeout[0], read=timeout[1], write=10.0, pool=10.0)
+
+        self.base_url = self.BASE_URL
+
+        self.timeout = httpx.Timeout(
+            connect=timeout[0], read=timeout[1], write=10.0, pool=10.0
+        )
+
         self.max_retries = max_retries
-        self._client = client
 
-    def _get_client(self) -> httpx.Client:
-        if self._client is not None:
-            return self._client
-        return httpx.Client(timeout=self.timeout)
-
-    def _execute_request(self, url: str) -> dict[str, Any] | None:
+    async def _execute_request(self, url: str) -> dict[str, Any] | None:
         """Executes HTTP request with exponential backoff and rate limit handling."""
-        client = self._get_client()
+
         for attempt in range(self.max_retries + 1):
             try:
-                resp = client.get(url)
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.get(url)
+
                 if resp.status_code == 200:
                     return resp.json()
                 elif resp.status_code == 404:
                     return None
                 elif resp.status_code == 429:
-                    retry_after = float(resp.headers.get("Retry-After", 1.0 + attempt * 2))
-                    time.sleep(min(retry_after, 5.0))
+                    retry_after = float(
+                        resp.headers.get("Retry-After", 1.0 + attempt * 2)
+                    )
+                    await asyncio.sleep(min(retry_after, 5.0))
                     continue
                 elif resp.status_code >= 500:
-                    time.sleep(0.5 * (2 ** attempt))
+                    await asyncio.sleep(0.5 * (2**attempt))
                     continue
                 else:
                     return None
             except (httpx.TimeoutException, httpx.NetworkError) as e:
                 logger.debug(f"deps.dev request error on attempt {attempt}: {e}")
                 if attempt < self.max_retries:
-                    time.sleep(0.5 * (2 ** attempt))
+                    await asyncio.sleep(0.5 * (2**attempt))
                 else:
                     return None
         return None
 
-    def collect_dependencies(
+    async def collect_dependencies(
         self,
         package_name: str,
         version: str,
         ecosystem: str = "pypi",
     ) -> DependencyEvidence:
         """Queries deps.dev for package dependency tree and returns DependencyEvidence."""
+
         eco_norm = "pypi" if ecosystem.lower() == "pypi" else "npm"
         encoded_pkg = package_name.replace("/", "%2F")
+
+        # build url
+        # https://api.deps.dev/v3/systems/pypi/packages/requests/versions/2.33.0:dependencies
         url = f"{self.base_url}/systems/{eco_norm}/packages/{encoded_pkg}/versions/{version}:dependencies"
 
-        data = self._execute_request(url)
+        data = await self._execute_request(url)
         if not data:
             return DependencyEvidence(status="MISSING")
 
@@ -103,6 +110,7 @@ class DepsDevCollector:
 
         # 3. BFS from root to compute exact depths and parent references
         from collections import deque
+
         visited: set[int] = {root_idx}
         queue: deque[tuple[int, int, str | None]] = deque([(root_idx, 0, None)])
         node_depth: dict[int, int] = {root_idx: 0}
@@ -111,7 +119,11 @@ class DepsDevCollector:
 
         while queue:
             curr_idx, curr_depth, _ = queue.popleft()
-            curr_name = nodes[curr_idx].get("versionKey", {}).get("name") if curr_idx < len(nodes) else None
+            curr_name = (
+                nodes[curr_idx].get("versionKey", {}).get("name")
+                if curr_idx < len(nodes)
+                else None
+            )
             for to_idx, req in adj.get(curr_idx, []):
                 if to_idx not in visited and to_idx < len(nodes):
                     visited.add(to_idx)
@@ -142,23 +154,25 @@ class DepsDevCollector:
 
             req = node_req.get(idx, "")
 
-            graph_nodes.append({
-                "name": name,
-                "version": ver,
-                "version_spec": req,
-                "depth": depth,
-                "parent": parent,
-                "is_archived": None,
-                "is_vulnerable": None,
-                "is_new": None,
-            })
+            graph_nodes.append(
+                {
+                    "name": name,
+                    "version": ver,
+                    "version_spec": req,
+                    "depth": depth,
+                    "parent": parent,
+                    "is_archived": None,
+                    "is_vulnerable": None,
+                    "is_new": None,
+                }
+            )
 
         return DependencyNormalizer.merge_sources(
             root_package=package_name,
             deps_dev_graph=graph_nodes,
         )
 
-    def collect_dependents_count(
+    async def collect_dependents_count(
         self,
         package_name: str,
         ecosystem: str = "pypi",
@@ -170,25 +184,29 @@ class DepsDevCollector:
         """
         eco_norm = "pypi" if ecosystem.lower() == "pypi" else "npm"
         encoded_pkg = package_name.replace("/", "%2F")
-        url = f"{self.base_url}/systems/{eco_norm}/packages/{encoded_pkg}/dependents"
-
-        data = self._execute_request(url)
-        if data and "dependentPackagesCount" in data:
-            deps = data.get("dependentPackagesCount")
-            if deps is not None:
-                return (int(deps), "deps_dev")
 
         # Fallback to libraries.io public package API
         lib_url = f"https://libraries.io/api/{eco_norm}/{encoded_pkg}"
         try:
-            client = self._get_client()
-            resp = client.get(lib_url, timeout=5.0)
-            if resp.status_code == 200:
-                lib_data = resp.json()
-                cnt = lib_data.get("dependents_count")
-                if cnt is not None:
-                    return (int(cnt), "libraries_io")
-        except Exception:
-            pass
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.get(lib_url)
+                if resp.status_code == 200:
+                    lib_data = resp.json()
+                    cnt = lib_data.get("dependents_count")
+                    if cnt is not None:
+                        return (int(cnt), "libraries_io")
+        except Exception as e:
+            logger.error(f"Error collecting dependents count from libraries.io: {e}")
 
         return (None, "missing")
+
+
+async def main():
+    deps = DepsDevCollector()
+    dep = await deps.collect_dependencies("requests", "2.32.0")
+    # dep = await deps.collect_dependents_count("fastapi")
+    print(dep)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

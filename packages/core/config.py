@@ -11,9 +11,13 @@ class Settings:
     # sources
     PYPI_BASE_URL: str = "https://pypi.org/pypi"
     OSV_BASE_URL: str = "https://api.osv.dev/v1/query"
+    CISA_FEED_URL: str = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+    GITHUB_URL: str = "https://api.github.com/repos"
+    DEPS_URL: str = "https://api.deps.dev/v3"
 
     # local database
     DATABASE_URL: str = str(APP_CACHE)
 
 
 settings = Settings()
+

@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import hashlib
-import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from packsafe.scoring.models import MetricDefinition
+from ..models.scoring import MetricDefinition
 
-
-CONFIG_DIR = Path(__file__).parent.parent / "config"
+CONFIG_DIR = Path(__file__).parent / "config"
 
 VALID_CATEGORIES = {
     "security",
@@ -26,12 +24,12 @@ VALID_CATEGORIES = {
 
 class ConfigValidationError(ValueError):
     """Raised when configuration fails schema or business invariant validation."""
-    pass
 
 
 @dataclass
 class EngineConfig:
     """Consolidated validated configuration for the ScoreEngine."""
+
     engine_version: str
     config_version: str
     config_sha256: str
@@ -81,7 +79,9 @@ def load_engine_config(config_dir: Path | None = None) -> EngineConfig:
     # 1. Validate Category Weights
     category_weights = weights_data.get("categories", {})
     if not category_weights:
-        raise ConfigValidationError("weights.yaml must contain 'categories' dictionary.")
+        raise ConfigValidationError(
+            "weights.yaml must contain 'categories' dictionary."
+        )
 
     for cat, weight in category_weights.items():
         if cat not in VALID_CATEGORIES:
@@ -91,12 +91,16 @@ def load_engine_config(config_dir: Path | None = None) -> EngineConfig:
 
     total_weight = sum(category_weights.values())
     if abs(total_weight - 1.0) > 1e-6:
-        raise ConfigValidationError(f"Category weights must sum to 1.00, got {total_weight:.6f}")
+        raise ConfigValidationError(
+            f"Category weights must sum to 1.00, got {total_weight:.6f}"
+        )
 
     # 2. Validate Metrics
     raw_metrics = metrics_data.get("metrics", [])
     if not raw_metrics:
-        raise ConfigValidationError("metrics.yaml must contain at least one metric definition.")
+        raise ConfigValidationError(
+            "metrics.yaml must contain at least one metric definition."
+        )
 
     metrics_dict: dict[str, MetricDefinition] = {}
     for m in raw_metrics:
@@ -105,14 +109,18 @@ def load_engine_config(config_dir: Path | None = None) -> EngineConfig:
             raise ConfigValidationError("Metric definition missing 'name'.")
         category = m.get("category")
         if category not in VALID_CATEGORIES:
-            raise ConfigValidationError(f"Metric '{name}' has invalid category '{category}'.")
+            raise ConfigValidationError(
+                f"Metric '{name}' has invalid category '{category}'."
+            )
         weight = float(m.get("weight", 0))
         if weight <= 0:
             raise ConfigValidationError(f"Metric '{name}' weight must be > 0.")
 
         direction = m.get("direction")
         if direction not in ("positive", "negative"):
-            raise ConfigValidationError(f"Metric '{name}' direction must be 'positive' or 'negative'.")
+            raise ConfigValidationError(
+                f"Metric '{name}' direction must be 'positive' or 'negative'."
+            )
 
         normalization = m.get("normalization")
         norm_params = m.get("normalization_params", {}) or {}
@@ -125,7 +133,9 @@ def load_engine_config(config_dir: Path | None = None) -> EngineConfig:
 
         # Validate scale parameter is positive if present
         if "scale" in norm_params and norm_params["scale"] <= 0:
-            raise ConfigValidationError(f"Metric '{name}' normalization scale must be > 0.")
+            raise ConfigValidationError(
+                f"Metric '{name}' normalization scale must be > 0."
+            )
 
         metric_def = MetricDefinition(
             name=name,
@@ -148,7 +158,9 @@ def load_engine_config(config_dir: Path | None = None) -> EngineConfig:
     for g in gates_list:
         priority = g.get("priority")
         if priority in seen_priorities:
-            raise ConfigValidationError(f"Duplicate gate priority {priority} in gates.yaml.")
+            raise ConfigValidationError(
+                f"Duplicate gate priority {priority} in gates.yaml."
+            )
         seen_priorities.add(priority)
 
     return EngineConfig(

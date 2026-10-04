@@ -2,27 +2,48 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
-from packsafe.evidence.models import PackageEvidence
-from packsafe.scoring.models import MetricEvidence, MetricStatus
+from datetime import UTC, datetime
+
+from ...models.scoring import MetricEvidence, MetricStatus
+from ...pipeline.context import AnalysisContext
 
 
 class MaintenanceMetricsExtractor:
-    """Extracts raw metric evidence for the Maintenance category."""
+    """Extracts raw metric evidence for the Maintenance category.
 
-    def extract_all(self, evidence: PackageEvidence) -> dict[str, MetricEvidence]:
+    Metrics:
+        - days_since_last_release   : float - Number of days since the last release. | (from registry_evidence)
+        - releases_last_year        : float - Number of releases in the last year. | (from registry_evidence)
+        - releases_last_3_months    : float - Number of releases in the last 3 months. | (from registry_evidence)
+        - recent_commits            : float - Number of commits in the last 90 days. | (from repository_evidence)
+        - recent_issue_activity     : float - Number of issues in the last 90 days. | (from repository_evidence)
+        - maintainer_count          : float - Number of maintainers. | (from registry_evidence)
+        - repository_archived       : bool  - Whether the repository is archived. | (from repository_evidence)
+        - project_maturity_days     : float - Number of days since the project was created. | (from registry_evidence)
+    """
+
+    def extract_all(self, context: AnalysisContext) -> dict[str, MetricEvidence]:
+        """Extracts the maintenance metrics from the context."""
+
         results: dict[str, MetricEvidence] = {}
-        reg = evidence.registry
-        repo = evidence.repository
+        reg = context.registry
+        repo = context.repository
 
-        reg_status = MetricStatus[reg.status.upper()] if hasattr(MetricStatus, reg.status.upper()) else MetricStatus.AVAILABLE
-        repo_status = MetricStatus[repo.status.upper()] if hasattr(MetricStatus, repo.status.upper()) else MetricStatus.AVAILABLE
+        reg_status = (
+            MetricStatus[reg.status.upper()]
+            if hasattr(MetricStatus, reg.status.upper())
+            else MetricStatus.AVAILABLE
+        )
+        repo_status = (
+            MetricStatus[repo.status.upper()]
+            if hasattr(MetricStatus, repo.status.upper())
+            else MetricStatus.AVAILABLE
+        )
 
         # 1. Days since last release
         days_release = reg.days_since_last_release
         if days_release == 0.0 and reg.published_at:
-            delta = datetime.utcnow() - reg.published_at
+            delta = datetime.now(UTC) - reg.published_at
             days_release = max(0.0, float(delta.days))
 
         results["days_since_last_release"] = MetricEvidence(

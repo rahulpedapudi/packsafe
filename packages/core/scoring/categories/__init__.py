@@ -1,5 +1,5 @@
 """Category scoring engine package."""
 
-from packsafe.scoring.categories.engine import CategoryScoringEngine
+from .engine import CategoryScoringEngine
 
 __all__ = ["CategoryScoringEngine"]

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from packsafe.scoring.config import EngineConfig
-from packsafe.scoring.models import CategoryScore, MetricResult, MetricStatus
+from ...models.scoring import CategoryScore, MetricResult, MetricStatus
+from ..config import EngineConfig
 
 
 class CategoryScoringEngine:
@@ -22,8 +22,7 @@ class CategoryScoringEngine:
 
         total_applicable_weight = sum(m.weight for m in category_metrics)
         available_metrics = [
-            m for m in category_metrics
-            if m.normalized_value is not None
+            m for m in category_metrics if m.normalized_value is not None
         ]
 
         available_weight = sum(m.weight for m in available_metrics)

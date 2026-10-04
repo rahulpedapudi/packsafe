@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import math
 from typing import Any
-from packsafe.scoring.normalization.base import clamp
+
+from .base import clamp
 
 
 def normalize_exponential_bad(x: float, scale: float = 1.0) -> float:

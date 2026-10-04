@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import math
 from typing import Any
-from packsafe.scoring.normalization.base import clamp
+
+from .base import clamp
 
 
 def normalize_log_positive(x: float, scale: float = 10.0) -> float:

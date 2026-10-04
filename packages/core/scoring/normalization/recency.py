@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import math
 from typing import Any
-from packsafe.scoring.normalization.base import clamp
+
+from .base import clamp
 
 
 def normalize_recency(days: float, decay_days: float = 365.0) -> float:

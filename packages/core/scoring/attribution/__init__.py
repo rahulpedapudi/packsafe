@@ -1,5 +1,5 @@
 """Attribution engine package."""
 
-from packsafe.scoring.attribution.engine import AttributionEngine
+from .engine import AttributionEngine
 
 __all__ = ["AttributionEngine"]

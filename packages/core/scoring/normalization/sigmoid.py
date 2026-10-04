@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import math
 from typing import Any
-from packsafe.scoring.normalization.base import clamp
+
+from .base import clamp
 
 
 def normalize_sigmoid(x: float, midpoint: float = 0.0, slope: float = 1.0) -> float:

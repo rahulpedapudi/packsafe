@@ -2,6 +2,8 @@ import asyncio
 import logging
 
 from ..models.package import PackageRequest
+
+# from ..scoring.engine import ScoreEngine
 from ..sources.pypi import PyPIRegistry
 from .context import AnalysisContext
 from .stages.dependency import DependencyStage
@@ -52,6 +54,8 @@ class AnalysisPipeline:
 
         # Score Engine
 
+        # score = ScoreEngine().calculate(context)
+
         elapsed = time.perf_counter() - analysis_start
         logger.info(
             f"Analysis Completed in {elapsed:.2f} seconds | {elapsed * 1000:.2f} ms"
@@ -62,7 +66,8 @@ class AnalysisPipeline:
 async def main():
     pipeline = AnalysisPipeline()
     request = PackageRequest(name="litellm", ecosystem="pypi")
-    await pipeline.run(request)
+    score = await pipeline.run(request)
+    # print(score)
 
 
 if __name__ == "__main__":

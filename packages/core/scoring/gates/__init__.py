@@ -1,5 +1,5 @@
 """Security Gate Engine package."""
 
-from packsafe.scoring.gates.engine import SecurityGateEngine
+from .engine import SecurityGateEngine
 
 __all__ = ["SecurityGateEngine"]

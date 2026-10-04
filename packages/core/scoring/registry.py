@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
-from typing import Any
-from packsafe.evidence.models import PackageEvidence
-from packsafe.scoring.config import EngineConfig
-from packsafe.scoring.models import (
-    MetricDefinition,
+from ..models.scoring import (
     MetricEvidence,
     MetricResult,
     MetricStatus,
 )
-from packsafe.scoring.normalization.registry import NormalizerRegistry, get_default_normalizer_registry
-from packsafe.scoring.metrics.vulnerability import VulnerabilityRiskEngine
-from packsafe.scoring.metrics.malicious_behavior import IntegrityMetricsExtractor
-from packsafe.scoring.metrics.typosquatting import TyposquattingEvaluator
-from packsafe.scoring.metrics.dependency import SupplyChainMetricsExtractor
-from packsafe.scoring.metrics.maintenance import MaintenanceMetricsExtractor
-from packsafe.scoring.metrics.adoption import AdoptionMetricsExtractor
+from ..pipeline.context import AnalysisContext
+from .config import EngineConfig
+from .metrics.adoption import AdoptionMetricsExtractor
+from .metrics.dependency import SupplyChainMetricsExtractor
+from .metrics.maintenance import MaintenanceMetricsExtractor
+
+# from .metrics.malicious_behavior import IntegrityMetricsExtractor
+# from .metrics.typosquatting import TyposquattingEvaluator
+from .metrics.vulnerability import VulnerabilityRiskEngine
+from .normalization.registry import (
+    NormalizerRegistry,
+    get_default_normalizer_registry,
+)
 
 
 class MetricRegistry:
@@ -35,21 +37,21 @@ class MetricRegistry:
         self.vuln_engine = VulnerabilityRiskEngine(
             factors_config=config.normalization.get("vulnerability_factors")
         )
-        self.integrity_extractor = IntegrityMetricsExtractor()
-        self.typo_evaluator = TyposquattingEvaluator()
+        # self.integrity_extractor = IntegrityMetricsExtractor()
+        # self.typo_evaluator = TyposquattingEvaluator()
         self.supply_chain_extractor = SupplyChainMetricsExtractor()
         self.maintenance_extractor = MaintenanceMetricsExtractor()
         self.adoption_extractor = AdoptionMetricsExtractor()
 
     def extract_and_evaluate_all(
         self,
-        evidence: PackageEvidence,
+        context: AnalysisContext,
     ) -> dict[str, MetricResult]:
         """Extracts and normalizes all 36 metrics defined in the frozen configuration."""
         raw_evidence_map: dict[str, MetricEvidence] = {}
 
         # 1. Vulnerability Evaluation
-        vuln_res = self.vuln_engine.evaluate(evidence)
+        vuln_res = self.vuln_engine.evaluate(context)
         self.last_vuln_eval_result = vuln_res
         norm_vuln_val = vuln_res.normalized_value
         vuln_risks = vuln_res.risks
@@ -66,50 +68,52 @@ class MetricRegistry:
         )
 
         # 2. Typosquatting Evaluation
-        if evidence.identity.status == "MISSING":
-            raw_evidence_map["typosquatting_risk"] = MetricEvidence(
-                metric_name="typosquatting_risk",
-                raw_value=None,
-                status=MetricStatus.MISSING,
-                source="identity",
-                confidence=0.0,
-            )
-            raw_evidence_map["typosquatting_context"] = MetricEvidence(
-                metric_name="typosquatting_context",
-                raw_value=None,
-                status=MetricStatus.MISSING,
-                source="identity",
-                confidence=0.0,
-            )
-        else:
-            typo_risk, typo_target, typo_sim, typo_ctx = self.typo_evaluator.evaluate(evidence)
-            raw_evidence_map["typosquatting_risk"] = MetricEvidence(
-                metric_name="typosquatting_risk",
-                raw_value=typo_risk,
-                status=MetricStatus.AVAILABLE,
-                source="identity",
-                confidence=0.90,
-                notes=f"Similarity: {typo_sim:.1%}, Target: {typo_target or 'none'}",
-            )
-            raw_evidence_map["typosquatting_context"] = MetricEvidence(
-                metric_name="typosquatting_context",
-                raw_value=typo_risk,
-                status=MetricStatus.AVAILABLE,
-                source="identity",
-                confidence=0.90,
-            )
+        # if context.identity.status == "MISSING":
+        #     raw_evidence_map["typosquatting_risk"] = MetricEvidence(
+        #         metric_name="typosquatting_risk",
+        #         raw_value=None,
+        #         status=MetricStatus.MISSING,
+        #         source="identity",
+        #         confidence=0.0,
+        #     )
+        #     raw_evidence_map["typosquatting_context"] = MetricEvidence(
+        #         metric_name="typosquatting_context",
+        #         raw_value=None,
+        #         status=MetricStatus.MISSING,
+        #         source="identity",
+        #         confidence=0.0,
+        #     )
+        # else:
+        #     typo_risk, typo_target, typo_sim, typo_ctx = self.typo_evaluator.evaluate(
+        #         context
+        #     )
+        #     raw_evidence_map["typosquatting_risk"] = MetricEvidence(
+        #         metric_name="typosquatting_risk",
+        #         raw_value=typo_risk,
+        #         status=MetricStatus.AVAILABLE,
+        #         source="identity",
+        #         confidence=0.90,
+        #         notes=f"Similarity: {typo_sim:.1%}, Target: {typo_target or 'none'}",
+        #     )
+        #     raw_evidence_map["typosquatting_context"] = MetricEvidence(
+        #         metric_name="typosquatting_context",
+        #         raw_value=typo_risk,
+        #         status=MetricStatus.AVAILABLE,
+        #         source="identity",
+        #         confidence=0.90,
+        #     )
 
-        # 3. Integrity Metrics
-        raw_evidence_map.update(self.integrity_extractor.extract_all(evidence))
+        # # 3. Integrity Metrics
+        # raw_evidence_map.update(self.integrity_extractor.extract_all(context))
 
         # 4. Supply Chain Metrics
-        raw_evidence_map.update(self.supply_chain_extractor.extract_all(evidence))
+        raw_evidence_map.update(self.supply_chain_extractor.extract_all(context))
 
         # 5. Maintenance Metrics
-        raw_evidence_map.update(self.maintenance_extractor.extract_all(evidence))
+        raw_evidence_map.update(self.maintenance_extractor.extract_all(context))
 
         # 6. Adoption Metrics
-        raw_evidence_map.update(self.adoption_extractor.extract_all(evidence))
+        raw_evidence_map.update(self.adoption_extractor.extract_all(context))
 
         # 7. Normalize against MetricDefinition
         results: dict[str, MetricResult] = {}
@@ -133,7 +137,9 @@ class MetricRegistry:
             is_available = status == MetricStatus.AVAILABLE
             is_stale = status == MetricStatus.STALE
 
-            if not is_available and not (is_stale and metric_def.stale_policy == "penalize_confidence"):
+            if not is_available and not (
+                is_stale and metric_def.stale_policy == "penalize_confidence"
+            ):
                 norm_val = None
                 if status != MetricStatus.MISSING:
                     if metric_def.missing_policy == "penalty":
@@ -148,8 +154,16 @@ class MetricRegistry:
                     weight=metric_def.weight,
                     contribution=0.0,
                     status=status,
-                    source=ev.source if ev else (metric_def.required_evidence[0] if metric_def.required_evidence else "unknown"),
-                    confidence=ev.confidence if (ev and status != MetricStatus.MISSING) else 0.0,
+                    source=ev.source
+                    if ev
+                    else (
+                        metric_def.required_evidence[0]
+                        if metric_def.required_evidence
+                        else "unknown"
+                    ),
+                    confidence=ev.confidence
+                    if (ev and status != MetricStatus.MISSING)
+                    else 0.0,
                     explanation=f"Metric data {status.value.lower()}",
                 )
                 continue
@@ -159,7 +173,9 @@ class MetricRegistry:
                 norm_val = norm_vuln_val
             else:
                 normalizer = self.normalizer_reg.get(metric_def.normalization)
-                norm_val = normalizer.normalize(ev.raw_value, metric_def.normalization_params)
+                norm_val = normalizer.normalize(
+                    ev.raw_value, metric_def.normalization_params
+                )
 
             # Clamp normalized value to [0.0, 1.0]
             norm_val = max(0.0, min(1.0, float(norm_val)))

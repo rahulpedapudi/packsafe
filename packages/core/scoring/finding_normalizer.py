@@ -3,33 +3,36 @@
 from __future__ import annotations
 
 import uuid
-from packsafe.evidence.models import StaticAnalysisFindingItem, VulnerabilityItem
-from packsafe.scoring.models import Finding
+
+from ..models.scoring import Finding
+from ..models.vulnerability import StaticAnalysisFindingItem, VulnerabilityItem
 
 
 class FindingNormalizer:
     """Produces canonical, immutable Finding objects consumable by gates, attribution, API, and LLM."""
 
-    CATEGORY_MAP = {
-        "CONFIRMED_MALICIOUS": "integrity",
-        "CREDENTIAL_SECRET_ACCESS": "integrity",
-        "SUSPICIOUS_INSTALL_BEHAVIOR": "integrity",
-        "REMOTE_CODE_DOWNLOAD": "integrity",
-        "REMOTE_PAYLOAD_EXECUTION": "integrity",
-        "SHELL_PROCESS_EXECUTION": "integrity",
-        "DYNAMIC_CODE_EXECUTION": "integrity",
-        "OBFUSCATION_PATTERNS": "integrity",
-        "SUSPICIOUS_NETWORK_BEHAVIOR": "integrity",
-        "ENVIRONMENT_VARIABLE_ACCESS": "integrity",
-        "VULNERABILITY": "security",
-        "TYPOSQUATTING": "integrity",
-    }
+    def __init__(self):
 
-    GATE_MAP = {
-        "CONFIRMED_MALICIOUS": "GATE-MALWARE",
-        "REMOTE_PAYLOAD_EXECUTION": "GATE-REMOTE-EXEC",
-        "SUSPICIOUS_INSTALL_BEHAVIOR": "GATE-INSTALL-MALWARE",
-    }
+        self.CATEGORY_MAP = {
+            "CONFIRMED_MALICIOUS": "integrity",
+            "CREDENTIAL_SECRET_ACCESS": "integrity",
+            "SUSPICIOUS_INSTALL_BEHAVIOR": "integrity",
+            "REMOTE_CODE_DOWNLOAD": "integrity",
+            "REMOTE_PAYLOAD_EXECUTION": "integrity",
+            "SHELL_PROCESS_EXECUTION": "integrity",
+            "DYNAMIC_CODE_EXECUTION": "integrity",
+            "OBFUSCATION_PATTERNS": "integrity",
+            "SUSPICIOUS_NETWORK_BEHAVIOR": "integrity",
+            "ENVIRONMENT_VARIABLE_ACCESS": "integrity",
+            "VULNERABILITY": "security",
+            "TYPOSQUATTING": "integrity",
+        }
+
+        self.GATE_MAP = {
+            "CONFIRMED_MALICIOUS": "GATE-MALWARE",
+            "REMOTE_PAYLOAD_EXECUTION": "GATE-REMOTE-EXEC",
+            "SUSPICIOUS_INSTALL_BEHAVIOR": "GATE-INSTALL-MALWARE",
+        }
 
     @classmethod
     def from_static_finding(
@@ -40,7 +43,7 @@ class FindingNormalizer:
         """Converts a StaticAnalysisFindingItem into a canonical Finding."""
         ftype = item.finding_type.upper()
         category = cls.CATEGORY_MAP.get(ftype, "integrity")
-        
+
         gate_triggered = None
         if ftype == "CREDENTIAL_SECRET_ACCESS" and item.confidence >= 0.85:
             gate_triggered = "GATE-CREDENTIAL-THEFT"
@@ -82,7 +85,11 @@ class FindingNormalizer:
         """Converts an applicable VulnerabilityItem into a canonical Finding."""
         vid_upper = vuln.vulnerability_id.upper()
         summary_upper = (vuln.summary or "").upper()
-        is_malware = vid_upper.startswith("MAL-") or "MALICIOUS" in summary_upper or "MALWARE" in summary_upper
+        is_malware = (
+            vid_upper.startswith("MAL-")
+            or "MALICIOUS" in summary_upper
+            or "MALWARE" in summary_upper
+        )
 
         gate_triggered = None
         category = "integrity" if is_malware else "security"
@@ -92,15 +99,20 @@ class FindingNormalizer:
         elif vuln.severity.upper() == "CRITICAL" and vuln.actively_exploited:
             gate_triggered = "GATE-ACTIVE-CRITICAL"
 
-        score_penalty = 20.0 if vuln.severity.upper() == "CRITICAL" or is_malware else 10.0
+        score_penalty = (
+            20.0 if vuln.severity.upper() == "CRITICAL" or is_malware else 10.0
+        )
 
         return Finding(
             finding_id=vuln.vulnerability_id,
             category=category,
             severity="CRITICAL" if is_malware else vuln.severity.upper(),
             confidence=0.95,
-            title=f"Malicious Package Advisory {vuln.vulnerability_id}" if is_malware else f"Vulnerability {vuln.vulnerability_id}",
-            description=vuln.summary or f"Known advisory affecting {package_version or 'package'}",
+            title=f"Malicious Package Advisory {vuln.vulnerability_id}"
+            if is_malware
+            else f"Vulnerability {vuln.vulnerability_id}",
+            description=vuln.summary
+            or f"Known advisory affecting {package_version or 'package'}",
             evidence=f"Advisory {vuln.vulnerability_id} (Aliases: {', '.join(vuln.aliases) if vuln.aliases else 'None'})",
             source=vuln.source,
             affected_version=package_version,

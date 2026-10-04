@@ -39,7 +39,7 @@ class RegistryEvidence:
     dependents_count: int | None = None
     dependents_source: str | None = None
     declared_license: str | None = None
-    status: str = "AVAILABLE"
+    status: EvidenceStatus = EvidenceStatus.AVAILABLE
 
 
 @dataclass(frozen=True)
@@ -55,4 +55,4 @@ class RepositoryEvidence:
     recent_issues_90d: int | None = None
     is_archived: bool = False
     default_branch: str = "main"
-    status: str = "AVAILABLE"
+    status: EvidenceStatus = EvidenceStatus.AVAILABLE

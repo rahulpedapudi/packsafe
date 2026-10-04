@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
-from packsafe.scoring.normalization.base import Normalizer
-from packsafe.scoring.normalization.linear import LinearBadNormalizer, LinearGoodNormalizer
-from packsafe.scoring.normalization.exponential import ExponentialBadNormalizer
-from packsafe.scoring.normalization.logarithmic import LogPositiveNormalizer, AdoptionNormalizer
-from packsafe.scoring.normalization.recency import RecencyNormalizer
-from packsafe.scoring.normalization.sigmoid import SigmoidNormalizer
-from packsafe.scoring.normalization.boolean import BooleanBadNormalizer, BooleanGoodNormalizer
+from .base import Normalizer
+from .boolean import BooleanBadNormalizer, BooleanGoodNormalizer
+from .exponential import ExponentialBadNormalizer
+from .linear import LinearBadNormalizer, LinearGoodNormalizer
+from .logarithmic import AdoptionNormalizer, LogPositiveNormalizer
+from .recency import RecencyNormalizer
+from .sigmoid import SigmoidNormalizer
 
 
 class NormalizerRegistry:

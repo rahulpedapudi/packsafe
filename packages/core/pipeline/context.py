@@ -34,8 +34,8 @@ class AnalysisContext:
 
     # static_analysis:
 
-    provenance: tuple[EvidenceProvenance, ...] = field(
-        default_factory=tuple
+    provenance: list[EvidenceProvenance] = field(
+        default_factory=list
     )  # all the evidence collected from various sources
 
     collected_at: datetime = field(default_factory=lambda: datetime.now(UTC))

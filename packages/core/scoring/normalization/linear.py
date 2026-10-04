@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from typing import Any
-from packsafe.scoring.normalization.base import clamp
+
+from .base import clamp
 
 
 def normalize_linear_bad(x: float, good: float = 0.0, bad: float = 1.0) -> float:

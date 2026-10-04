@@ -1,10 +1,8 @@
 import logging
 import time
 
-import httpx
-
-from ...models.evidence import EvidenceProvenance, RegistryEvidence
-from ...models.package import PackageRequest
+from ...models.evidence import EvidenceProvenance
+from ...models.package import PackageIdentity, PackageRequest
 from ...pipeline.context import AnalysisContext
 from ...sources.base_registry import PackageRegistry
 
@@ -37,10 +35,17 @@ class ExistenceStage:
         )
 
         if exists:
-            identity.distribution_url = dist_url
-
-            context.package = identity
+            context.package = PackageIdentity(
+                archive_hash=identity.archive_hash,
+                distribution_url=dist_url,
+                name=identity.name,
+                ecosystem=identity.ecosystem,
+                version=identity.version,
+                package_url=identity.package_url,
+                registry_integrity=identity.registry_integrity,
+                repository_url=identity.repository_url,
+            )
             context.registry = evidence
-            context.provenance += provenance
+            context.provenance.append(provenance)
 
         return None

@@ -2,21 +2,41 @@
 
 from __future__ import annotations
 
-from typing import Any
-from packsafe.evidence.models import PackageEvidence
-from packsafe.scoring.models import MetricEvidence, MetricStatus
+from ...models.scoring import MetricEvidence, MetricStatus
+from ...pipeline.context import AnalysisContext
 
 
 class AdoptionMetricsExtractor:
-    """Extracts raw metric evidence for the Adoption category."""
+    """Extracts raw metric evidence for the Adoption category.
 
-    def extract_all(self, evidence: PackageEvidence) -> dict[str, MetricEvidence]:
+    Metrics:
+        - download_count    : number of downloads in the last 30 days (from registry evidence)
+        - download_growth   : growth rate of downloads in the last 30 days (from registry evidence)
+        - dependents_count  : number of dependents (from registry evidence)
+        - stars_count       : number of stars (from repository evidence)
+        - forks_count       : number of forks (from repository evidence)
+        - watchers_count    : number of watchers (from repository evidence)
+    """
+
+    def extract_all(self, context: AnalysisContext) -> dict[str, MetricEvidence]:
+        """Extracts the adoption metrics from the context."""
         results: dict[str, MetricEvidence] = {}
-        reg = evidence.registry
-        repo = evidence.repository
 
-        reg_status = MetricStatus[reg.status.upper()] if hasattr(MetricStatus, reg.status.upper()) else MetricStatus.AVAILABLE
-        repo_status = MetricStatus[repo.status.upper()] if hasattr(MetricStatus, repo.status.upper()) else MetricStatus.AVAILABLE
+        reg = context.registry
+        repo = context.repository
+
+        # converting status string into MetricStatus Enum
+        reg_status = (
+            MetricStatus[reg.status.upper()]
+            if hasattr(MetricStatus, reg.status.upper())
+            else MetricStatus.AVAILABLE
+        )
+
+        repo_status = (
+            MetricStatus[repo.status.upper()]
+            if hasattr(MetricStatus, repo.status.upper())
+            else MetricStatus.AVAILABLE
+        )
 
         # 1. Download count (30 days)
         results["download_count"] = MetricEvidence(
@@ -40,10 +60,13 @@ class AdoptionMetricsExtractor:
         # 3. Dependents count
         dependents_val = getattr(reg, "dependents_count", None)
         dependents_src = getattr(reg, "dependents_source", None) or "deps_dev"
-        if dependents_val is None:
-            dependents_val = getattr(evidence, "dependents_count", None)
 
-        dep_status = "AVAILABLE" if dependents_val is not None else "MISSING"
+        dep_status = (
+            MetricStatus.AVAILABLE
+            if dependents_val is not None
+            else MetricStatus.MISSING
+        )
+
         # Source reliability: deps.dev (0.90), libraries.io fallback (0.80), missing (0.0)
         if dependents_val is not None:
             dep_conf = 0.90 if dependents_src == "deps_dev" else 0.80

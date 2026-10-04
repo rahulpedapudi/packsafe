@@ -23,7 +23,7 @@ class RepositoryStage:
                 )
 
             context.repository = repo_evidence
-            context.provenance += repo_evidence_provenance
+            context.provenance.append(repo_evidence_provenance)
 
             end_time = time.perf_counter() - start_time
 

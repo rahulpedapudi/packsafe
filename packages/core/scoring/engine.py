@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from packsafe.evidence.models import PackageEvidence
-from packsafe.evidence.normalization.vulnerability import VulnerabilityDeduplicator, is_version_affected
-from packsafe.scoring.attribution.engine import AttributionEngine
-from packsafe.scoring.categories.engine import CategoryScoringEngine
-from packsafe.scoring.confidence.engine import ConfidenceEngine
-from packsafe.scoring.config import EngineConfig, load_engine_config
-from packsafe.scoring.finding_normalizer import FindingNormalizer
-from packsafe.scoring.gates.engine import SecurityGateEngine
-from packsafe.scoring.models import (
+from datetime import UTC, datetime
+from typing import Any
+
+from ..models.scoring import (
     Decision,
     Finding,
     GateSeverity,
@@ -19,7 +13,18 @@ from packsafe.scoring.models import (
     RiskLevel,
     ScoreResult,
 )
-from packsafe.scoring.registry import MetricRegistry
+from ..pipeline.context import AnalysisContext
+from ..sources.normalizers.vulnerability import (
+    VulnerabilityDeduplicator,
+    is_version_affected,
+)
+from .attribution.engine import AttributionEngine
+from .categories.engine import CategoryScoringEngine
+from .confidence.engine import ConfidenceEngine
+from .config import EngineConfig, load_engine_config
+from .finding_normalizer import FindingNormalizer
+from .gates.engine import SecurityGateEngine
+from .registry import MetricRegistry
 
 
 def map_risk_level(score: float) -> RiskLevel:
@@ -49,25 +54,29 @@ def max_risk_level(*risks: RiskLevel) -> RiskLevel:
     return max(risks, key=lambda r: RISK_RANK.get(r, 0))
 
 
-def map_vulnerability_risk_level(vuln_res: Any | None, findings: tuple[Finding, ...]) -> RiskLevel:
+def map_vulnerability_risk_level(
+    vuln_res: Any | None, findings: tuple[Finding, ...]
+) -> RiskLevel:
     """Maps canonical vulnerability findings and aggregate risk to a standardized RiskLevel."""
     if not vuln_res:
         return RiskLevel.SAFE
 
     # Actively exploited vulnerability -> CRITICAL
-    if any(getattr(r, "actively_exploited", False) for r in getattr(vuln_res, "risks", [])):
+    if any(
+        getattr(r, "actively_exploited", False) for r in getattr(vuln_res, "risks", [])
+    ):
         return RiskLevel.CRITICAL
 
     vuln_findings = [f for f in findings if f.category == "security"]
     has_critical = any(f.severity.upper() == "CRITICAL" for f in vuln_findings)
     has_high = any(f.severity.upper() == "HIGH" for f in vuln_findings)
-    has_medium = any(f.severity.upper() in ("MEDIUM", "MODERATE") for f in vuln_findings)
+    has_medium = any(
+        f.severity.upper() in ("MEDIUM", "MODERATE") for f in vuln_findings
+    )
     has_low = any(f.severity.upper() == "LOW" for f in vuln_findings)
 
     combined = getattr(vuln_res, "combined_risk", 0.0)
-    if has_critical or combined >= 0.70:
-        return RiskLevel.HIGH
-    elif has_high or combined >= 0.40:
+    if has_critical or combined >= 0.70 or has_high or combined >= 0.40:
         return RiskLevel.HIGH
     elif has_medium or combined >= 0.20:
         return RiskLevel.MODERATE
@@ -91,12 +100,16 @@ class ScoreEngine:
         self.attribution_engine = AttributionEngine(self.config)
         self.vuln_deduplicator = VulnerabilityDeduplicator()
 
-    def calculate(self, evidence: PackageEvidence) -> ScoreResult:
+    def calculate(self, evidence: AnalysisContext) -> ScoreResult:
         """Calculates a deterministic security-risk assessment from the supplied evidence."""
         # 1. Extract and evaluate all metrics (includes canonical vulnerability risk evaluation)
         metric_results = self.metric_registry.extract_and_evaluate_all(evidence)
         vuln_res = getattr(self.metric_registry, "last_vuln_eval_result", None)
-        risk_map = {r.vulnerability_id: r.individual_risk for r in vuln_res.risks} if vuln_res else {}
+        risk_map = (
+            {r.vulnerability_id: r.individual_risk for r in vuln_res.risks}
+            if vuln_res
+            else {}
+        )
 
         # 2. Normalize findings from static analysis and applicable canonical vulnerabilities
         normalized_findings: list[Finding] = []
@@ -104,14 +117,24 @@ class ScoreEngine:
         ecosystem = evidence.package.ecosystem
 
         for sf in evidence.static_analysis.findings:
-            normalized_findings.append(FindingNormalizer.from_static_finding(sf, pkg_version))
+            normalized_findings.append(
+                FindingNormalizer.from_static_finding(sf, pkg_version)
+            )
 
         # Deduplicate vulnerabilities to canonical items (one finding per canonical CVE/advisory cluster)
-        deduped_vulns = self.vuln_deduplicator.deduplicate(evidence.vulnerabilities.items)
+        deduped_vulns = self.vuln_deduplicator.deduplicate(
+            evidence.vulnerabilities.items
+        )
         for v in deduped_vulns:
-            if is_version_affected(pkg_version, v.affected_ranges, v.fixed_versions, ecosystem):
+            if is_version_affected(
+                pkg_version, v.affected_ranges, v.fixed_versions, ecosystem
+            ):
                 indiv_risk = risk_map.get(v.vulnerability_id, 0.0)
-                normalized_findings.append(FindingNormalizer.from_vulnerability(v, pkg_version, risk=indiv_risk))
+                normalized_findings.append(
+                    FindingNormalizer.from_vulnerability(
+                        v, pkg_version, risk=indiv_risk
+                    )
+                )
 
         immutable_findings = tuple(normalized_findings)
 
@@ -121,13 +144,17 @@ class ScoreEngine:
         # 4. Compute BaseScore with missing-category denominator rule:
         # BaseScore = sum(cat.weight * cat.score for cat in available) / sum(cat.weight for cat in available)
         available_categories = [
-            cat for cat in categories.values()
+            cat
+            for cat in categories.values()
             if cat.status != MetricStatus.MISSING and cat.available_weight > 0.0
         ]
         total_avail_cat_weight = sum(cat.weight for cat in available_categories)
 
         if total_avail_cat_weight > 0.0:
-            base_score = sum(cat.weight * cat.score for cat in available_categories) / total_avail_cat_weight
+            base_score = (
+                sum(cat.weight * cat.score for cat in available_categories)
+                / total_avail_cat_weight
+            )
         else:
             base_score = 0.0
 
@@ -137,8 +164,16 @@ class ScoreEngine:
         gate_results = self.gate_engine.evaluate(evidence, immutable_findings)
 
         # 6. Apply Gate Overrides
-        critical_gates = [g for g in gate_results if g.triggered and g.severity == GateSeverity.CRITICAL]
-        warning_gates = [g for g in gate_results if g.triggered and g.severity == GateSeverity.WARNING]
+        critical_gates = [
+            g
+            for g in gate_results
+            if g.triggered and g.severity == GateSeverity.CRITICAL
+        ]
+        warning_gates = [
+            g
+            for g in gate_results
+            if g.triggered and g.severity == GateSeverity.WARNING
+        ]
 
         if critical_gates:
             floor = min(
@@ -181,11 +216,23 @@ class ScoreEngine:
 
         # 9. Evidence coverage summary
         ev_summary = {
-            "available": sum(1 for m in metric_results.values() if m.status == MetricStatus.AVAILABLE),
-            "missing": sum(1 for m in metric_results.values() if m.status == MetricStatus.MISSING),
-            "stale": sum(1 for m in metric_results.values() if m.status == MetricStatus.STALE),
-            "invalid": sum(1 for m in metric_results.values() if m.status == MetricStatus.INVALID),
-            "not_applicable": sum(1 for m in metric_results.values() if m.status == MetricStatus.NOT_APPLICABLE),
+            "available": sum(
+                1 for m in metric_results.values() if m.status == MetricStatus.AVAILABLE
+            ),
+            "missing": sum(
+                1 for m in metric_results.values() if m.status == MetricStatus.MISSING
+            ),
+            "stale": sum(
+                1 for m in metric_results.values() if m.status == MetricStatus.STALE
+            ),
+            "invalid": sum(
+                1 for m in metric_results.values() if m.status == MetricStatus.INVALID
+            ),
+            "not_applicable": sum(
+                1
+                for m in metric_results.values()
+                if m.status == MetricStatus.NOT_APPLICABLE
+            ),
         }
 
         return ScoreResult(
@@ -203,7 +250,7 @@ class ScoreEngine:
             findings=immutable_findings,
             gates=gate_results,
             attribution=attribution,
-            analyzed_at=datetime.now(timezone.utc),
+            analyzed_at=datetime.now(UTC),
             engine_version=self.config.engine_version,
             config_version=self.config.config_version,
             config_sha256=self.config.config_sha256,

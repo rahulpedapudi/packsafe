@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from packsafe.scoring.config import EngineConfig
-from packsafe.scoring.models import (
+from ...models.scoring import (
     CategoryScore,
     Decision,
     GateResult,
@@ -13,6 +12,7 @@ from packsafe.scoring.models import (
     RiskLevel,
     ScoreAttribution,
 )
+from ..config import EngineConfig
 
 
 class AttributionEngine:
@@ -47,7 +47,9 @@ class AttributionEngine:
                 category=cat_name,
                 metric=m_name,
                 raw_value=m_res.raw_value,
-                normalized_value=round(m_res.normalized_value, 4) if m_res.normalized_value is not None else None,
+                normalized_value=round(m_res.normalized_value, 4)
+                if m_res.normalized_value is not None
+                else None,
                 metric_weight=m_res.weight,
                 metric_contribution=round(m_res.contribution, 2),
                 category_weight=cat_weight,
@@ -58,13 +60,26 @@ class AttributionEngine:
             )
             metric_attributions.append(attr)
 
-            if m_res.status == MetricStatus.AVAILABLE and m_res.normalized_value is not None:
+            if (
+                m_res.status == MetricStatus.AVAILABLE
+                and m_res.normalized_value is not None
+            ):
                 # Rank top drivers
                 impact = m_res.weight * (m_res.normalized_value - 0.5)
                 if m_res.normalized_value >= 0.85:
-                    positive_drivers.append((impact, f"+ {m_res.explanation} (score: {m_res.normalized_value:.2f})"))
+                    positive_drivers.append(
+                        (
+                            impact,
+                            f"+ {m_res.explanation} (score: {m_res.normalized_value:.2f})",
+                        )
+                    )
                 elif m_res.normalized_value <= 0.40:
-                    negative_drivers.append((abs(impact), f"- {m_res.explanation} (score: {m_res.normalized_value:.2f})"))
+                    negative_drivers.append(
+                        (
+                            abs(impact),
+                            f"- {m_res.explanation} (score: {m_res.normalized_value:.2f})",
+                        )
+                    )
 
         # Sort drivers by absolute impact
         positive_drivers.sort(key=lambda x: x[0], reverse=True)

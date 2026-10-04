@@ -2,18 +2,35 @@
 
 from __future__ import annotations
 
-from typing import Any
-from packsafe.evidence.models import PackageEvidence
-from packsafe.scoring.models import MetricEvidence, MetricStatus
+from ...models.scoring import MetricEvidence, MetricStatus
+from ...pipeline.context import AnalysisContext
 
 
 class SupplyChainMetricsExtractor:
-    """Extracts raw metric evidence for the Supply Chain category."""
+    """Extracts raw metric evidence for the Supply Chain category.
 
-    def extract_all(self, evidence: PackageEvidence) -> dict[str, MetricEvidence]:
+    Metrics:
+        - direct_dependency_count         : int   - Number of direct dependencies. | (from deps_dev)
+        - transitive_dependency_count     : int   - Number of transitive dependencies. | (from deps_dev)
+        - dependency_depth                : int   - Maximum depth of the dependency tree. | (from deps_dev)
+        - dependency_vulnerability_exposure : float - Weighted exposure to vulnerable dependencies. | (from deps_dev)
+        - direct_vulnerable_deps          : int   - Number of direct dependencies with vulnerabilities. | (from deps_dev)
+        - transitive_vulnerable_deps      : int   - Number of transitive dependencies with vulnerabilities. | (from deps_dev)
+        - abandoned_dependencies          : int   - Number of abandoned dependencies. | (from deps_dev)
+        - new_dependencies                : int   - Number of new dependencies. | (from deps_dev)
+        - dependency_churn                : float - Dependency churn rate. | (from deps_dev)
+    """
+
+    def extract_all(self, context: AnalysisContext) -> dict[str, MetricEvidence]:
+
         results: dict[str, MetricEvidence] = {}
-        deps = evidence.dependencies
-        status = MetricStatus[deps.status.upper()] if hasattr(MetricStatus, deps.status.upper()) else MetricStatus.AVAILABLE
+
+        deps = context.dependencies
+        status = (
+            MetricStatus[deps.status.upper()]
+            if hasattr(MetricStatus, deps.status.upper())
+            else MetricStatus.AVAILABLE
+        )
 
         # Counts
         direct_count = deps.direct_count or len(deps.direct_dependencies)
@@ -21,12 +38,22 @@ class SupplyChainMetricsExtractor:
         depth = deps.max_depth or (1 if direct_count > 0 else 0)
 
         # Vulnerable dependencies
-        direct_vuln_count = sum(1 for d in deps.direct_dependencies if d.vulnerabilities)
-        transitive_vuln_count = sum(1 for d in deps.transitive_dependencies if d.vulnerabilities)
-        vuln_exposure = deps.vulnerable_dependency_count or (direct_vuln_count + 0.5 * transitive_vuln_count)
+        direct_vuln_count = sum(
+            1 for d in deps.direct_dependencies if d.vulnerabilities
+        )
+        transitive_vuln_count = sum(
+            1 for d in deps.transitive_dependencies if d.vulnerabilities
+        )
+        vuln_exposure = deps.vulnerable_dependency_count or (
+            direct_vuln_count + 0.5 * transitive_vuln_count
+        )
 
         # Abandoned / new / churn
-        abandoned_count = deps.abandoned_count or sum(1 for d in deps.direct_dependencies + deps.transitive_dependencies if d.is_archived)
+        abandoned_count = deps.abandoned_count or sum(
+            1
+            for d in deps.direct_dependencies + deps.transitive_dependencies
+            if d.is_archived
+        )
         new_count = deps.new_dependencies_count
         churn = deps.churn_rate
 

@@ -13,8 +13,10 @@ from .metrics.adoption import AdoptionMetricsExtractor
 from .metrics.dependency import SupplyChainMetricsExtractor
 from .metrics.maintenance import MaintenanceMetricsExtractor
 
-# from .metrics.malicious_behavior import IntegrityMetricsExtractor
-# from .metrics.typosquatting import TyposquattingEvaluator
+from .metrics.malicious_behavior import (
+    IntegrityMetricsExtractor,
+    TyposquattingEvaluator,
+)
 from .metrics.vulnerability import VulnerabilityRiskEngine
 from .normalization.registry import (
     NormalizerRegistry,
@@ -37,8 +39,8 @@ class MetricRegistry:
         self.vuln_engine = VulnerabilityRiskEngine(
             factors_config=config.normalization.get("vulnerability_factors")
         )
-        # self.integrity_extractor = IntegrityMetricsExtractor()
-        # self.typo_evaluator = TyposquattingEvaluator()
+        self.integrity_extractor = IntegrityMetricsExtractor()
+        self.typo_evaluator = TyposquattingEvaluator()
         self.supply_chain_extractor = SupplyChainMetricsExtractor()
         self.maintenance_extractor = MaintenanceMetricsExtractor()
         self.adoption_extractor = AdoptionMetricsExtractor()
@@ -68,43 +70,46 @@ class MetricRegistry:
         )
 
         # 2. Typosquatting Evaluation
-        # if context.identity.status == "MISSING":
-        #     raw_evidence_map["typosquatting_risk"] = MetricEvidence(
-        #         metric_name="typosquatting_risk",
-        #         raw_value=None,
-        #         status=MetricStatus.MISSING,
-        #         source="identity",
-        #         confidence=0.0,
-        #     )
-        #     raw_evidence_map["typosquatting_context"] = MetricEvidence(
-        #         metric_name="typosquatting_context",
-        #         raw_value=None,
-        #         status=MetricStatus.MISSING,
-        #         source="identity",
-        #         confidence=0.0,
-        #     )
-        # else:
-        #     typo_risk, typo_target, typo_sim, typo_ctx = self.typo_evaluator.evaluate(
-        #         context
-        #     )
-        #     raw_evidence_map["typosquatting_risk"] = MetricEvidence(
-        #         metric_name="typosquatting_risk",
-        #         raw_value=typo_risk,
-        #         status=MetricStatus.AVAILABLE,
-        #         source="identity",
-        #         confidence=0.90,
-        #         notes=f"Similarity: {typo_sim:.1%}, Target: {typo_target or 'none'}",
-        #     )
-        #     raw_evidence_map["typosquatting_context"] = MetricEvidence(
-        #         metric_name="typosquatting_context",
-        #         raw_value=typo_risk,
-        #         status=MetricStatus.AVAILABLE,
-        #         source="identity",
-        #         confidence=0.90,
-        #     )
+        if context.identity.status == "MISSING":
+            raw_evidence_map["typosquatting_risk"] = MetricEvidence(
+                metric_name="typosquatting_risk",
+                raw_value=None,
+                status=MetricStatus.MISSING,
+                source="identity",
+                confidence=0.0,
+            )
+            raw_evidence_map["typosquatting_context"] = MetricEvidence(
+                metric_name="typosquatting_context",
+                raw_value=None,
+                status=MetricStatus.MISSING,
+                source="identity",
+                confidence=0.0,
+            )
+        else:
+            (
+                typo_risk,
+                typo_target,
+                typo_sim,
+                _typo_ctx,
+            ) = self.typo_evaluator.evaluate(context)
+            raw_evidence_map["typosquatting_risk"] = MetricEvidence(
+                metric_name="typosquatting_risk",
+                raw_value=typo_risk,
+                status=MetricStatus.AVAILABLE,
+                source="identity",
+                confidence=0.90,
+                notes=f"Similarity: {typo_sim:.1%}, Target: {typo_target or 'none'}",
+            )
+            raw_evidence_map["typosquatting_context"] = MetricEvidence(
+                metric_name="typosquatting_context",
+                raw_value=typo_risk,
+                status=MetricStatus.AVAILABLE,
+                source="identity",
+                confidence=0.90,
+            )
 
-        # # 3. Integrity Metrics
-        # raw_evidence_map.update(self.integrity_extractor.extract_all(context))
+        # 3. Integrity Metrics
+        raw_evidence_map.update(self.integrity_extractor.extract_all(context))
 
         # 4. Supply Chain Metrics
         raw_evidence_map.update(self.supply_chain_extractor.extract_all(context))

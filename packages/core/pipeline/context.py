@@ -55,4 +55,12 @@ class AnalysisContext:
         default_factory=list
     )  # all the evidence collected from various sources
 
+    license_file_found: bool = (
+        False
+    )  # set by ArchiveStage, consumed by LicenseStage
+
+    analysis_coverage_tier: str = (
+        "registry_osv"
+    )  # how much of the package was actually inspected; read by ConfidenceEngine
+
     collected_at: datetime = field(default_factory=lambda: datetime.now(UTC))

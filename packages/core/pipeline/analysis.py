@@ -1,34 +1,28 @@
 import asyncio
 import logging
+import time
 
+from ..exceptions import PackageNotFoundError
 from ..models.package import PackageRequest
+from ..models.scoring import ScoreResult
 from ..scoring.engine import ScoreEngine
 from ..sources.pypi import PyPIRegistry
 from .context import AnalysisContext
+from .coverage import compute_coverage_tier
+from .stages.archive import ArchiveStage
 from .stages.dependency import DependencyStage
 from .stages.existence import ExistenceStage
+from .stages.identity import IdentityStage
+from .stages.license import LicenseStage
 from .stages.repository import RepositoryStage
 from .stages.vulnerability import VulnerabilityStage
 
-logging.basicConfig(
-    filename="app-dev.log",
-    filemode="w",
-    # capturing INFO level and above
-    level=logging.INFO,
-    format=("%(asctime)s | %(levelname)s | %(name)s | %(message)s"),
-)
-
 logger = logging.getLogger(__name__)
-
-import time
 
 
 class AnalysisPipeline:
-    async def run(self, request: PackageRequest) -> AnalysisContext:
+    async def run(self, request: PackageRequest) -> ScoreResult:
 
-        # 1. collect data from various sources - pypi, osv, github deps.dev etc
-        # 2. normalize data if needed. (KEV Normalizer)
-        # n. static analysis - AST, and direct exec call analysis
         analysis_start = time.perf_counter()
         logger.info(f"Analysis Pipeline Started for {request}")
 
@@ -41,15 +35,29 @@ class AnalysisPipeline:
 
         await ExistenceStage(registry).execute(context)
 
+        # A package that does not exist has no identity, version, or distribution
+        # URL, so every downstream stage would operate on None. Raise instead: an
+        # absent package must never be reported as a perfect score.
+        if context.package.name is None:
+            raise PackageNotFoundError(request.name, request.ecosystem)
+
+        # Archive runs alongside the other existence-dependent stages: it only needs
+        # context.package, which ExistenceStage has already populated.
         await asyncio.gather(
             VulnerabilityStage().execute(context),
             RepositoryStage().execute(context),
             DependencyStage().execute(context),
+            ArchiveStage().execute(context),
         )
 
-        # 4. Archive Download & Static Analysis & License Verification
-        # 5. License Evidence
-        # 6. Truthful Identity & Typosquatting Evaluation
+        # License needs license_file_found from the archive; Identity needs the
+        # resolved repository. Both therefore wait for the batch above.
+        await asyncio.gather(
+            LicenseStage().execute(context),
+            IdentityStage().execute(context),
+        )
+
+        context.analysis_coverage_tier = compute_coverage_tier(context)
 
         # Score Engine
 

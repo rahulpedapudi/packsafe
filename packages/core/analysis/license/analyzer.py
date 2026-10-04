@@ -5,8 +5,7 @@ Strictly isolated from the five core security categories.
 
 from __future__ import annotations
 
-import re
-from packsafe.evidence.models import LicenseEvidence
+from ...models.evidence import LicenseEvidence
 
 OSI_APPROVED = {
     "MIT",
@@ -65,7 +64,9 @@ class LicenseAnalyzer:
             return "CC0-1.0"
         return raw_license.strip()
 
-    def analyze(self, raw_license: str | None, license_file_found: bool = True) -> LicenseEvidence:
+    def analyze(
+        self, raw_license: str | None, license_file_found: bool = True
+    ) -> LicenseEvidence:
         spdx = self.normalize_spdx(raw_license)
         spdx_upper = spdx.upper()
 

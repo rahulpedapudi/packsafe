@@ -23,10 +23,7 @@ class ExistenceStage:
         logger.info(f"Existence Stage Started\nCurrent Context: {context}\n")
 
         requested_package: PackageRequest = context.request
-        (
-            exists,
-            (identity, evidence, provenance, dist_url),
-        ) = await self.registry.exists(requested_package)
+        result = await self.registry.exists(requested_package)
 
         end_time = time.perf_counter() - start_time
 
@@ -34,7 +31,10 @@ class ExistenceStage:
             f"Existence Stage Completed in {end_time:.2f} seconds | {end_time * 1000:.2f} ms\n"
         )
 
-        if exists:
+        exists = result[0] if result else False
+
+        if exists and result[1] is not None:
+            identity, evidence, provenance, dist_url = result[1]
             context.package = PackageIdentity(
                 archive_hash=identity.archive_hash,
                 distribution_url=dist_url,

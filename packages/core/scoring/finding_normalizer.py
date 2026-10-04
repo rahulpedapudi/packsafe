@@ -5,34 +5,44 @@ from __future__ import annotations
 import uuid
 
 from ..models.scoring import Finding
-from ..models.vulnerability import StaticAnalysisFindingItem, VulnerabilityItem
+from ..models.static_analysis import StaticAnalysisFindingItem
+from ..models.vulnerability import VulnerabilityItem
 
 
 class FindingNormalizer:
     """Produces canonical, immutable Finding objects consumable by gates, attribution, API, and LLM."""
 
-    def __init__(self):
+    # Class-level, not instance-level: these are consumed by @classmethod methods.
+    CATEGORY_MAP = {
+        "CONFIRMED_MALICIOUS": "integrity",
+        "CREDENTIAL_SECRET_ACCESS": "integrity",
+        "SUSPICIOUS_INSTALL_BEHAVIOR": "integrity",
+        "REMOTE_CODE_DOWNLOAD": "integrity",
+        "REMOTE_PAYLOAD_EXECUTION": "integrity",
+        "SHELL_PROCESS_EXECUTION": "integrity",
+        "DYNAMIC_CODE_EXECUTION": "integrity",
+        "OBFUSCATION_PATTERNS": "integrity",
+        "SUSPICIOUS_NETWORK_BEHAVIOR": "integrity",
+        "ENVIRONMENT_VARIABLE_ACCESS": "integrity",
+        "VULNERABILITY": "security",
+        "TYPOSQUATTING": "integrity",
+    }
 
-        self.CATEGORY_MAP = {
-            "CONFIRMED_MALICIOUS": "integrity",
-            "CREDENTIAL_SECRET_ACCESS": "integrity",
-            "SUSPICIOUS_INSTALL_BEHAVIOR": "integrity",
-            "REMOTE_CODE_DOWNLOAD": "integrity",
-            "REMOTE_PAYLOAD_EXECUTION": "integrity",
-            "SHELL_PROCESS_EXECUTION": "integrity",
-            "DYNAMIC_CODE_EXECUTION": "integrity",
-            "OBFUSCATION_PATTERNS": "integrity",
-            "SUSPICIOUS_NETWORK_BEHAVIOR": "integrity",
-            "ENVIRONMENT_VARIABLE_ACCESS": "integrity",
-            "VULNERABILITY": "security",
-            "TYPOSQUATTING": "integrity",
-        }
+    GATE_MAP = {
+        "CONFIRMED_MALICIOUS": "GATE-MALWARE",
+        "REMOTE_PAYLOAD_EXECUTION": "GATE-REMOTE-EXEC",
+        "SUSPICIOUS_INSTALL_BEHAVIOR": "GATE-INSTALL-MALWARE",
+    }
 
-        self.GATE_MAP = {
-            "CONFIRMED_MALICIOUS": "GATE-MALWARE",
-            "REMOTE_PAYLOAD_EXECUTION": "GATE-REMOTE-EXEC",
-            "SUSPICIOUS_INSTALL_BEHAVIOR": "GATE-INSTALL-MALWARE",
-        }
+    SEVERITY_PENALTY = {
+        "CRITICAL": 15.0,
+        "HIGH": 8.0,
+        "MEDIUM": 3.0,
+    }
+
+    # Findings at or above this confidence are treated as confirmed enough to gate.
+    GATE_CONFIDENCE_THRESHOLD = 0.85
+    WARN_CONFIDENCE_THRESHOLD = 0.50
 
     @classmethod
     def from_static_finding(
@@ -45,20 +55,20 @@ class FindingNormalizer:
         category = cls.CATEGORY_MAP.get(ftype, "integrity")
 
         gate_triggered = None
-        if ftype == "CREDENTIAL_SECRET_ACCESS" and item.confidence >= 0.85:
+        if (
+            ftype == "CREDENTIAL_SECRET_ACCESS"
+            and item.confidence >= cls.GATE_CONFIDENCE_THRESHOLD
+        ):
             gate_triggered = "GATE-CREDENTIAL-THEFT"
-        elif ftype in cls.GATE_MAP and item.confidence >= 0.85:
+        elif ftype in cls.GATE_MAP and item.confidence >= cls.GATE_CONFIDENCE_THRESHOLD:
             gate_triggered = cls.GATE_MAP[ftype]
-        elif item.confidence >= 0.50 and ftype not in ("ENVIRONMENT_VARIABLE_ACCESS",):
+        elif (
+            item.confidence >= cls.WARN_CONFIDENCE_THRESHOLD
+            and ftype not in ("ENVIRONMENT_VARIABLE_ACCESS",)
+        ):
             gate_triggered = "GATE-SUSPICIOUS-WARN"
 
-        score_penalty = 0.0
-        if item.severity == "CRITICAL":
-            score_penalty = 15.0
-        elif item.severity == "HIGH":
-            score_penalty = 8.0
-        elif item.severity == "MEDIUM":
-            score_penalty = 3.0
+        score_penalty = cls.SEVERITY_PENALTY.get(item.severity.upper(), 0.0)
 
         return Finding(
             finding_id=f"FINDING-{uuid.uuid4().hex[:8].upper()}",

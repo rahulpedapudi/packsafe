@@ -2,11 +2,37 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from ..models.scoring import Finding
 from ..models.static_analysis import StaticAnalysisFindingItem
-from ..models.vulnerability import VulnerabilityItem
+from ..models.vulnerability import ExploitationSignal, VulnerabilityItem
+
+logger = logging.getLogger(__name__)
+
+
+def describe_exploitation(vuln: VulnerabilityItem) -> str:
+    """Renders exploitation evidence as a claim the source data actually supports.
+
+    Never says "actively exploited": KEV records that exploitation was observed at some
+    point, and entries are rarely removed, so that phrasing would misrepresent a
+    multi-year-old listing as a live threat.
+    """
+    parts: list[str] = []
+
+    if vuln.kev_date_added is not None:
+        parts.append(f"Listed in CISA KEV (added {vuln.kev_date_added.isoformat()})")
+    if vuln.known_ransomware_use:
+        parts.append("known ransomware campaign use")
+
+    if vuln.epss_percentile is not None:
+        parts.append(f"EPSS percentile {vuln.epss_percentile:.1%}")
+
+    if not parts:
+        return ""
+
+    return "; ".join(parts)
 
 
 class FindingNormalizer:
@@ -70,6 +96,19 @@ class FindingNormalizer:
 
         score_penalty = cls.SEVERITY_PENALTY.get(item.severity.upper(), 0.0)
 
+        logger.debug(
+            "finding from static analysis | type=%s severity=%s confidence=%.2f -> "
+            "category=%s gate=%s score_penalty=%.1f | %s:%s",
+            ftype,
+            item.severity,
+            item.confidence,
+            category,
+            gate_triggered or "none",
+            score_penalty,
+            item.file_path,
+            item.line_number,
+        )
+
         return Finding(
             finding_id=f"FINDING-{uuid.uuid4().hex[:8].upper()}",
             category=category,
@@ -101,16 +140,41 @@ class FindingNormalizer:
             or "MALWARE" in summary_upper
         )
 
+        # Describe exploitation evidence precisely. "Actively exploited" would be a
+        # claim the underlying data cannot support.
+        exploitation_note = describe_exploitation(vuln)
+
         gate_triggered = None
         category = "integrity" if is_malware else "security"
 
         if is_malware:
             gate_triggered = "GATE-MALWARE"
-        elif vuln.severity.upper() == "CRITICAL" and vuln.actively_exploited:
+        elif (
+            vuln.severity.upper() == "CRITICAL"
+            and vuln.known_ransomware_use
+        ) or (
+            vuln.severity.upper() == "CRITICAL"
+            and vuln.exploitation_signal == ExploitationSignal.RECENTLY_LISTED
+        ):
+            # Only imminent exploitation evidence justifies a hard block. KEV
+            # membership alone would block on any CVE CISA has ever listed.
             gate_triggered = "GATE-ACTIVE-CRITICAL"
 
         score_penalty = (
             20.0 if vuln.severity.upper() == "CRITICAL" or is_malware else 10.0
+        )
+
+        logger.debug(
+            "finding from advisory | id=%s severity=%s malware=%s aliases=%s -> "
+            "category=%s gate=%s score_penalty=%.1f exploitation=%s",
+            vuln.vulnerability_id,
+            vuln.severity,
+            is_malware,
+            list(vuln.aliases) or "none",
+            category,
+            gate_triggered or "none",
+            score_penalty,
+            exploitation_note or "no exploitation evidence",
         )
 
         return Finding(
@@ -121,9 +185,18 @@ class FindingNormalizer:
             title=f"Malicious Package Advisory {vuln.vulnerability_id}"
             if is_malware
             else f"Vulnerability {vuln.vulnerability_id}",
-            description=vuln.summary
-            or f"Known advisory affecting {package_version or 'package'}",
-            evidence=f"Advisory {vuln.vulnerability_id} (Aliases: {', '.join(vuln.aliases) if vuln.aliases else 'None'})",
+            description=(
+                f"{exploitation_note}. {vuln.summary}"
+                if exploitation_note and vuln.summary
+                else exploitation_note
+                or vuln.summary
+                or f"Known advisory affecting {package_version or 'package'}"
+            ),
+            evidence=(
+                f"Advisory {vuln.vulnerability_id} "
+                f"(Aliases: {', '.join(vuln.aliases) if vuln.aliases else 'None'})"
+                + (f" | {exploitation_note}" if exploitation_note else "")
+            ),
             source=vuln.source,
             affected_version=package_version,
             affects_categories=(category,),

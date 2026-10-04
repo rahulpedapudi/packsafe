@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
 from ...models.scoring import MetricResult, MetricStatus
 from ...pipeline.context import AnalysisContext
 from ..config import EngineConfig
+
+logger = logging.getLogger(__name__)
 
 
 class ConfidenceEngine:
@@ -32,6 +36,10 @@ class ConfidenceEngine:
         ]
 
         if not applicable_metrics:
+            logger.warning(
+                "confidence=0.00 | no applicable metrics at all, so there is nothing to "
+                "be confident about"
+            )
             return 0.0
 
         # 1. Category-Weighted Evidence Coverage
@@ -87,4 +95,32 @@ class ConfidenceEngine:
         raw_conf = (
             100.0 * total_coverage * weighted_source_reliability * analysis_coverage
         )
-        return round(max(0.0, min(100.0, raw_conf)), 2)
+        confidence = round(max(0.0, min(100.0, raw_conf)), 2)
+
+        logger.info(
+            "confidence=%.2f%% | 100 * evidence_coverage=%.4f * source_reliability=%.4f "
+            "* analysis_coverage=%.4f (tier=%s) | metrics applicable=%d usable=%d",
+            confidence,
+            total_coverage,
+            weighted_source_reliability,
+            analysis_coverage,
+            tier,
+            len(applicable_metrics),
+            len(available_metrics),
+        )
+        logger.debug(
+            "confidence detail | sources=%s",
+            {
+                m.source: self.config.sources.get(m.source.lower(), 0.80)
+                for m in available_metrics
+            },
+        )
+        if analysis_coverage < 1.0:
+            logger.info(
+                "confidence reduced | coverage tier '%s' multiplies confidence by "
+                "%.4f: the package was not fully inspected",
+                tier,
+                analysis_coverage,
+            )
+
+        return confidence

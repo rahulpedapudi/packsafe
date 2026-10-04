@@ -15,6 +15,7 @@ from ...models.static_analysis import (
 from ...pipeline.context import AnalysisContext
 from ...sources.archive import ArchiveCollector, ExtractedArchive
 from ...sources.safe_archive import ArchiveSecurityError
+from ...tracing import fmt_duration, pick, stage_trace
 
 logger = logging.getLogger(__name__)
 
@@ -34,57 +35,78 @@ class ArchiveStage:
         self.collector = collector or ArchiveCollector()
 
     async def execute(self, context: AnalysisContext) -> None:
-        start_time = time.perf_counter()
-        logger.info(f"Archive Stage Started\nCurrent Context: {context}\n")
+        with stage_trace(
+            "archive",
+            logger,
+            inputs=pick(
+                context.package,
+                ("name", "version", "ecosystem", "distribution_url", "archive_hash"),
+            ),
+        ) as span:
+            # npm support is not implemented yet; skip rather than mis-analyze.
+            if context.package.ecosystem != EcosystemType.pypi:
+                span.skip("only the pypi ecosystem is supported")
+                return
 
-        # npm support is not implemented yet; skip rather than mis-analyze.
-        if context.package.ecosystem != EcosystemType.pypi:
-            logger.debug("Archive Stage skipped: only the pypi ecosystem is supported.")
-            return
+            dist_url = context.package.distribution_url
+            if not dist_url:
+                span.skip("no distribution URL available")
+                return
 
-        dist_url = context.package.distribution_url
-        if not dist_url:
-            logger.debug("Archive Stage skipped: no distribution URL available.")
-            return
-
-        archive: ExtractedArchive | None = None
-        try:
-            archive = await self.collector.collect(
-                dist_url,
-                expected_sha256=context.package.archive_hash,
-            )
-
-            static_ev = await asyncio.to_thread(self._analyze, archive)
-
-            context.static_analysis = static_ev
-            context.license_file_found = self._license_file_found(archive.files)
-
-            context.provenance.append(
-                EvidenceProvenance(
-                    source="archive",
-                    source_url=dist_url,
-                    archive_sha256=archive.sha256,
+            archive: ExtractedArchive | None = None
+            try:
+                analyze_start = time.perf_counter()
+                archive = await self.collector.collect(
+                    dist_url,
+                    expected_sha256=context.package.archive_hash,
                 )
-            )
+                collect_elapsed = time.perf_counter() - analyze_start
 
-        except (ArchiveSecurityError, OSError, ValueError) as e:
-            # Security-relevant: an integrity or containment failure must be visible.
-            logger.warning(f"Archive inspection failed for {dist_url}: {e}")
-            context.static_analysis = StaticAnalysisEvidence(status="MISSING")
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.debug(f"Live archive inspection failed: {e}")
-            context.static_analysis = StaticAnalysisEvidence(status="MISSING")
-        finally:
-            if archive is not None:
-                archive.cleanup()
-            await self.collector.aclose()
+                static_start = time.perf_counter()
+                static_ev = await asyncio.to_thread(self._analyze, archive)
+                static_elapsed = time.perf_counter() - static_start
 
-        elapsed = time.perf_counter() - start_time
-        logger.info(
-            f"Archive Stage Completed in {elapsed:.2f} seconds | {elapsed * 1000:.2f} ms\n"
-        )
+                context.static_analysis = static_ev
+                context.license_file_found = self._license_file_found(archive.files)
+
+                context.provenance.append(
+                    EvidenceProvenance(
+                        source="archive",
+                        source_url=dist_url,
+                        archive_sha256=archive.sha256,
+                    )
+                )
+
+                span.output(
+                    status=static_ev.status,
+                    archive_sha256=archive.sha256,
+                    archive_size_bytes=archive.size_bytes,
+                    files_extracted=len(archive.files),
+                    files_scanned=static_ev.scanned_files_count,
+                    findings=len(static_ev.findings),
+                    license_file_found=context.license_file_found,
+                )
+                logger.debug(
+                    "archive breakdown | download+extract=%s static_analysis=%s "
+                    "(static analysis runs in a worker thread, so its time is not "
+                    "concurrent with other stages)",
+                    fmt_duration(collect_elapsed),
+                    fmt_duration(static_elapsed),
+                )
+
+            except (ArchiveSecurityError, OSError, ValueError) as e:
+                # Security-relevant: an integrity or containment failure must be visible.
+                context.static_analysis = StaticAnalysisEvidence(status="MISSING")
+                span.fail(f"archive inspection failed for {dist_url}: {e}")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                context.static_analysis = StaticAnalysisEvidence(status="MISSING")
+                span.degrade(f"live archive inspection failed: {e}")
+            finally:
+                if archive is not None:
+                    archive.cleanup()
+                await self.collector.aclose()
 
     def _analyze(self, archive: ExtractedArchive) -> StaticAnalysisEvidence:
         """Runs static analysis off the event loop and merges in archive metadata."""

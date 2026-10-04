@@ -2,9 +2,28 @@
 
 from __future__ import annotations
 
+import logging
+
+from ...models.vulnerability import ExploitationSignal
 from ...pipeline.context import AnalysisContext
 from ..config import EngineConfig
 from ..models import Decision, Finding, GateResult, GateSeverity
+
+logger = logging.getLogger(__name__)
+
+
+def _log_gate(result: GateResult) -> None:
+    """Records one gate's verdict: pass lines carry the reason they did not trigger."""
+    detail = (
+        f"severity={result.severity.value} score_floor="
+        f"{result.score_floor if result.score_floor is not None else '-'} "
+        f"decision_override={result.decision_override.value if result.decision_override else '-'} "
+        f"evidence={list(result.evidence_ids) or 'none'} | {result.reason}"
+    )
+    if result.triggered:
+        logger.info("gate=%s TRIGGERED | %s", result.gate_id, detail)
+    else:
+        logger.debug("gate=%s passed | %s", result.gate_id, detail)
 
 
 class SecurityGateEngine:
@@ -17,6 +36,19 @@ class SecurityGateEngine:
     def __init__(self, config: EngineConfig) -> None:
         self.config = config
 
+    @staticmethod
+    def _is_imminent_exploitation(v: object) -> bool:
+        """True when exploitation evidence justifies a hard block.
+
+        KEV membership on its own is insufficient: CISA almost never delists entries,
+        so an old listing means exploitation was observed at some point, not now.
+        """
+        if getattr(v, "known_ransomware_use", False):
+            return True
+        return getattr(v, "exploitation_signal", None) == (
+            ExploitationSignal.RECENTLY_LISTED
+        )
+
     def evaluate(
         self,
         evidence: AnalysisContext,
@@ -26,6 +58,13 @@ class SecurityGateEngine:
         gate_results: list[GateResult] = []
         static_findings = evidence.static_analysis.findings
         all_findings = calculated_findings or ()
+
+        logger.info(
+            "gate evaluation | gates_in_config=%d static_findings=%d canonical_findings=%d",
+            len(self.config.gates),
+            len(static_findings),
+            len(all_findings),
+        )
 
         def find_static_matches(types: list[str], min_conf: float = 0.85) -> list[str]:
             matched_snippets: list[str] = []
@@ -93,18 +132,34 @@ class SecurityGateEngine:
 
             # 2. GATE-ACTIVE-CRITICAL
             elif gate_id == "GATE-ACTIVE-CRITICAL":
-                active_critical_vulns = [
-                    v.vulnerability_id
-                    for v in evidence.vulnerabilities.items
-                    if v.severity.upper() == "CRITICAL" and v.actively_exploited
-                ]
+                # This gate BLOCKs at score_floor, so it holds a much higher bar than
+                # a risk multiplier: CRITICAL severity AND a recent KEV listing OR
+                # reported ransomware use. A stale KEV entry alone will not trigger it,
+                # because CISA rarely removes entries and that is not evidence of
+                # current exploitation.
+                active_critical_vulns: list[str] = []
+                for v in evidence.vulnerabilities.items:
+                    if v.severity.upper() != "CRITICAL":
+                        continue
+                    if not self._is_imminent_exploitation(v):
+                        continue
+                    detail = (
+                        "ransomware campaign use reported"
+                        if v.known_ransomware_use
+                        else f"added to CISA KEV on {v.kev_date_added}"
+                    )
+                    active_critical_vulns.append(f"{v.vulnerability_id} ({detail})")
+
                 if active_critical_vulns:
                     gate_results.append(
                         GateResult(
                             gate_id=gate_id,
                             triggered=True,
                             severity=GateSeverity.CRITICAL,
-                            reason=f"Actively exploited critical vulnerability: {', '.join(active_critical_vulns)}",
+                            reason=(
+                                "Critical vulnerability with current exploitation "
+                                f"evidence: {', '.join(active_critical_vulns)}"
+                            ),
                             decision_override=Decision.BLOCK,
                             score_floor=score_floor,
                             evidence_ids=tuple(active_critical_vulns),
@@ -116,7 +171,10 @@ class SecurityGateEngine:
                             gate_id=gate_id,
                             triggered=False,
                             severity=GateSeverity.NONE,
-                            reason="No actively exploited critical vulnerabilities.",
+                            reason=(
+                                "No critical vulnerability with recent exploitation "
+                                "evidence."
+                            ),
                             evidence_ids=(),
                         )
                     )
@@ -253,5 +311,18 @@ class SecurityGateEngine:
                             evidence_ids=(),
                         )
                     )
+
+        for gate_result in gate_results:
+            _log_gate(gate_result)
+
+        logger.info(
+            "gate evaluation complete | evaluated=%d triggered=%d | %s",
+            len(gate_results),
+            sum(1 for g in gate_results if g.triggered),
+            ", ".join(
+                f"{g.gate_id}={g.severity.value}" for g in gate_results if g.triggered
+            )
+            or "no gate triggered",
+        )
 
         return tuple(gate_results)

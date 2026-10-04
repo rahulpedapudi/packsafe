@@ -8,6 +8,8 @@ source_reliability:
   advisories: 1.00
   identity: 0.90
   archive: 0.95
+  kev: 0.98
+  epss: 0.90
   heuristic: 0.80
 
 analysis_coverage_tiers:

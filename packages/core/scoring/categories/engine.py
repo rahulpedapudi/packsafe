@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
 from ...models.scoring import CategoryScore, MetricResult, MetricStatus
+from ...tracing import fmt_fields
 from ..config import EngineConfig
+
+logger = logging.getLogger(__name__)
 
 
 class CategoryScoringEngine:
@@ -29,6 +34,16 @@ class CategoryScoringEngine:
 
         if available_weight <= 0.0:
             # Entire category is missing: mark status MISSING and exclude from score calculation
+            logger.info(
+                "category=%s | EXCLUDED from score | score=0.00 | no metric had usable "
+                "evidence (applicable_weight=%.4f across %d metrics) | %s",
+                category_name,
+                total_applicable_weight,
+                len(category_metrics),
+                fmt_fields(
+                    {m.metric_name: m.status.value for m in category_metrics}
+                ),
+            )
             return CategoryScore(
                 name=category_name,
                 score=0.0,
@@ -67,6 +82,41 @@ class CategoryScoringEngine:
             )
 
         contribution = cat_score * category_weight
+
+        logger.info(
+            "category=%s | score=%.4f weight=%.4f contribution=%.4f | "
+            "weighted_sum=%.4f / available_weight=%.4f * 100 | coverage=%d/%d metrics "
+            "(%d dropped: %s)",
+            category_name,
+            cat_score,
+            category_weight,
+            contribution,
+            weighted_sum,
+            available_weight,
+            len(available_metrics),
+            len(category_metrics),
+            len(category_metrics) - len(available_metrics),
+            fmt_fields(
+                {
+                    m.metric_name: m.status.value
+                    for m in category_metrics
+                    if m.normalized_value is None
+                }
+            ),
+        )
+        for m in sorted(available_metrics, key=lambda m: m.weight, reverse=True):
+            logger.debug(
+                "category=%s metric=%s raw=%s normalized=%.4f weight=%.4f "
+                "contribution=%.4f source=%s confidence=%.2f",
+                category_name,
+                m.metric_name,
+                m.raw_value,
+                m.normalized_value,  # type: ignore[arg-type]
+                m.weight,
+                m.contribution,
+                m.source,
+                m.confidence,
+            )
 
         return CategoryScore(
             name=category_name,

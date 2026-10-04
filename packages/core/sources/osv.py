@@ -9,9 +9,19 @@ from ..config import settings
 from ..models.evidence import EvidenceProvenance, EvidenceStatus
 from ..models.package import EcosystemType
 from ..models.vulnerability import VulnerabilityEvidence, VulnerabilityItem
+from ..tracing import log_http
 from .helpers import calculate_severity
 
 logger = logging.getLogger(__name__)
+
+
+def _severity_mix(items: list[VulnerabilityItem]) -> str:
+    """Counts advisories per severity for the fetch summary line."""
+    counts: dict[str, int] = {}
+    for item in items:
+        key = (item.severity or "UNKNOWN").upper()
+        counts[key] = counts.get(key, 0) + 1
+    return ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none"
 
 
 class OSVCollector:
@@ -49,7 +59,21 @@ class OSVCollector:
             # auto retrying
             for attempt in range(self.max_retries + 1):
                 try:
+                    request_start = time.perf_counter()
                     resp = await client.post(settings.OSV_BASE_URL, json=payload)
+                    request_elapsed = time.perf_counter() - request_start
+
+                    log_http(
+                        logger,
+                        "osv",
+                        method="POST",
+                        url=settings.OSV_BASE_URL,
+                        status=resp.status_code,
+                        elapsed=request_elapsed,
+                        attempt=attempt,
+                        detail=f"package={package_name} version={version or 'latest'}",
+                    )
+
                     if resp.status_code == 200:
                         try:
                             data = resp.json()
@@ -132,9 +156,11 @@ class OSVCollector:
                                     vulnerability_id=v_id,
                                     aliases=aliases,
                                     severity=sev_str[1],
+                                    # Exploitation evidence is layered on by
+                                    # ExploitationNormalizer (KEV + EPSS). OSV
+                                    # itself reports no exploitation signal.
                                     exploitability=0.50,
                                     exposure=1.0,
-                                    actively_exploited=False,  # Enriched downstream via KEVNormalizer; if the vulnerability is actively being exploited, this changes to True.
                                     affected_ranges=tuple(ranges),
                                     fixed_versions=tuple(fixed),
                                     summary=v.get("summary", ""),
@@ -154,10 +180,36 @@ class OSVCollector:
                             retrieved_at=now,
                         )
 
+                        logger.info(
+                            "osv fetch | %d advisory record(s) parsed into %d "
+                            "vulnerability item(s) in %s | severity_mix=%s",
+                            len(raw_vulns),
+                            len(items),
+                            f"{request_elapsed:.3f}s",
+                            _severity_mix(items),
+                        )
+                        logger.debug(
+                            "osv parse detail | %s",
+                            {
+                                item.vulnerability_id: (
+                                    f"severity={item.severity} "
+                                    f"ranges={list(item.affected_ranges)} "
+                                    f"fixed={list(item.fixed_versions)}"
+                                )
+                                for item in items
+                            },
+                        )
+
                         # returns when everything went fine.
                         return (vuln_ev, prov)
 
                     elif resp.status_code == 404:
+                        logger.warning(
+                            "osv fetch | 404 for %s@%s: OSV has no record of this "
+                            "package; vulnerability evidence is MISSING, not clean",
+                            package_name,
+                            version,
+                        )
                         return (
                             VulnerabilityEvidence(
                                 items=(),
@@ -174,12 +226,34 @@ class OSVCollector:
                         retry_after = float(
                             resp.headers.get("Retry-After", 1.0 + attempt * 2)
                         )
-                        time.sleep(min(retry_after, 5.0))
+                        backoff = min(retry_after, 5.0)
+                        logger.warning(
+                            "osv fetch | rate limited (429), sleeping %.1fs before "
+                            "attempt %d",
+                            backoff,
+                            attempt + 1,
+                        )
+                        time.sleep(backoff)
                         continue
                     elif resp.status_code >= 500:
-                        time.sleep(0.5 * (2**attempt))
+                        backoff = 0.5 * (2**attempt)
+                        logger.warning(
+                            "osv fetch | server error %d, sleeping %.1fs before "
+                            "attempt %d",
+                            resp.status_code,
+                            backoff,
+                            attempt + 1,
+                        )
+                        time.sleep(backoff)
                         continue
                     else:
+                        logger.warning(
+                            "osv fetch | unexpected HTTP %d for %s@%s; treating "
+                            "evidence as INVALID",
+                            resp.status_code,
+                            package_name,
+                            version,
+                        )
                         return (
                             VulnerabilityEvidence(
                                 items=(),
@@ -193,10 +267,21 @@ class OSVCollector:
                             ),
                         )
                 except (httpx.TimeoutException, httpx.NetworkError) as e:
-                    logger.debug(f"OSV request error on attempt {attempt}: {e}")
+                    logger.warning(
+                        "osv fetch | network error on attempt %d/%d: %s",
+                        attempt + 1,
+                        self.max_retries + 1,
+                        e,
+                    )
                     if attempt < self.max_retries:
                         time.sleep(0.5 * (2**attempt))
                     else:
+                        logger.warning(
+                            "osv fetch | gave up after %d attempts; vulnerability "
+                            "evidence is MISSING, so the security category cannot "
+                            "contribute to the score",
+                            self.max_retries + 1,
+                        )
                         return (
                             VulnerabilityEvidence(
                                 items=(),
@@ -209,7 +294,13 @@ class OSVCollector:
                                 retrieved_at=now,
                             ),
                         )
-                except Exception:
+                except Exception as e:
+                    logger.warning(
+                        "osv fetch | unexpected error, treating evidence as INVALID: "
+                        "%s: %s",
+                        type(e).__name__,
+                        e,
+                    )
                     return (
                         VulnerabilityEvidence(
                             items=(), status=EvidenceStatus.INVALID, osv_queried=False
@@ -221,6 +312,11 @@ class OSVCollector:
                         ),
                     )
 
+        logger.warning(
+            "osv fetch | exhausted %d attempts without a usable response; "
+            "vulnerability evidence is MISSING",
+            self.max_retries + 1,
+        )
         return (
             VulnerabilityEvidence(
                 items=(), status=EvidenceStatus.MISSING, osv_queried=False

@@ -10,6 +10,7 @@ import httpx
 from ..config import settings
 from ..models.evidence import EvidenceProvenance, RegistryEvidence
 from ..models.package import EcosystemType, PackageIdentity, PackageRequest
+from ..tracing import fmt_duration, fmt_fields, log_http
 
 logger = logging.getLogger(__name__)
 
@@ -22,38 +23,55 @@ class PyPIRegistry:
         tuple[PackageIdentity, RegistryEvidence, EvidenceProvenance, str | None] | None,
     ]:
         start = time.perf_counter()
-        logger.info(f"Checking PyPI Registry for {package}")
+        url = f"{settings.PYPI_BASE_URL}/{package.name}/json"
+        logger.info(
+            "pypi lookup | %s", fmt_fields({"package": package.name, "requested_version": package.version})
+        )
 
         try:
             async with httpx.AsyncClient() as client:
                 network_start = time.perf_counter()
-                response = await client.get(
-                    f"{settings.PYPI_BASE_URL}/{package.name}/json", timeout=5
-                )
+                response = await client.get(url, timeout=5)
                 network_elapsed = time.perf_counter() - network_start
 
-                logger.info(
-                    f"Network Call Completed in {network_elapsed:.2f} seconds | {network_elapsed * 1000:.2f} ms"
+                log_http(
+                    logger,
+                    "pypi",
+                    method="GET",
+                    url=url,
+                    status=response.status_code,
+                    elapsed=network_elapsed,
                 )
 
                 if response.status_code == 200:
-                    # extracts all the package info from pypi
-                    return (
-                        True,
-                        self.extract_metadata(
-                            package.name, package.version, response.json()
-                        ),
+                    metadata = self.extract_metadata(
+                        package.name, package.version, response.json()
                     )
-                else:
-                    return (False, None)
+                    identity, reg_ev, prov, dist_url = metadata
+                    logger.info(
+                        "pypi fetch ok | resolved_version=%s latest_version=%s "
+                        "declared_license=%s dist_url=%s archive_sha256=%s",
+                        identity.version,
+                        reg_ev.latest_version,
+                        reg_ev.declared_license,
+                        dist_url or "none",
+                        identity.archive_hash or "none",
+                    )
+                    return (True, metadata)
+
+                logger.warning(
+                    "pypi fetch | HTTP %d for %s: treating the package as non-existent",
+                    response.status_code,
+                    package.name,
+                )
+                return (False, None)
 
         except httpx.HTTPError as e:
+            logger.error("pypi fetch failed for %s: %s", package.name, e)
             raise httpx.HTTPError(f"Could not fetch the data from pypi: {e}")
         finally:
             elapsed = time.perf_counter() - start
-            logger.info(
-                f"Checking PyPI Registry Completed in {elapsed:.2f} seconds | {elapsed * 1000:.2f} ms"
-            )
+            logger.info("pypi lookup complete | duration=%s", fmt_duration(elapsed))
 
     def _extract_repository_url(self, info: dict[str, Any]) -> str | None:
         return (
@@ -97,6 +115,11 @@ class PyPIRegistry:
                             version_timestamps[ver] = dt
                     except Exception as e:
                         logger.info(f"Failed to Parse upload date: {e}")
+                logger.debug(
+                    "pypi parse | release %s -> earliest upload %s",
+                    ver,
+                    dt.isoformat(timespec="seconds"),
+                )
 
         # Calculate temporal metrics on DISTINCT versions
         one_year_ago = now - timedelta(days=365)
@@ -131,6 +154,22 @@ class PyPIRegistry:
                 dist_url = f_url
                 archive_hash = f.get("digests", {}).get("sha256")
                 break
+
+        logger.debug(
+            "pypi metadata extraction | releases_total=%d distinct_release_dates=%d "
+            "files_for_resolved_version=%d dist_url=%s",
+            len(releases),
+            len(all_v_times),
+            len(version_files),
+            dist_url or "NOT FOUND (archive stage will be skipped)",
+        )
+        if not dist_url:
+            logger.warning(
+                "pypi metadata | no .tar.gz/.whl distribution found for %s==%s, so no "
+                "archive can be downloaded and static analysis is impossible",
+                name,
+                resolved_version,
+            )
 
         # TODO: Implement download statistics from pypistats API
         # downloads_30d, growth_rate = self.get_stats(package_name)

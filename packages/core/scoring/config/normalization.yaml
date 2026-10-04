@@ -35,6 +35,12 @@ vulnerability_factors:
     TRANSITIVE_D1: 0.8
     TRANSITIVE_D2: 0.6
     TRANSITIVE_D3: 0.4
+  # Exploitation evidence multipliers, keyed by ExploitationSignal value.
+  # Tiered by strength of evidence rather than a binary in/not-in-KEV switch:
+  # a recent KEV listing outweighs an old one, which outweighs an EPSS
+  # prediction, which outweighs nothing known.
   exploitation:
-    ACTIVELY_EXPLOITED: 1.0
-    NOT_KNOWN_EXPLOITED: 0.25
+    recently_listed: 1.0    # in CISA KEV, added within the recency window
+    known_exploited: 0.60   # in CISA KEV, listing older than the recency window
+    predicted: 0.45         # not in KEV, but EPSS percentile is elevated
+    none: 0.25              # no exploitation evidence

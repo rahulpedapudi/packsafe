@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from ...models.scoring import (
     CategoryScore,
     Decision,
@@ -13,6 +15,8 @@ from ...models.scoring import (
     ScoreAttribution,
 )
 from ..config import EngineConfig
+
+logger = logging.getLogger(__name__)
 
 
 class AttributionEngine:
@@ -103,6 +107,20 @@ class AttributionEngine:
             rec = "Review required against organization policy (e.g. license compliance or package authorization)."
         else:
             rec = "Package exhibits a healthy security posture and meets standard acceptance criteria."
+
+        logger.info(
+            "attribution | category_contributions=%s | top_positive=%d top_negative=%d "
+            "| decision=%s -> recommendation=%s",
+            category_contributions,
+            len(top_pos),
+            len(top_neg),
+            decision.value,
+            rec,
+        )
+        for signal in top_pos:
+            logger.info("attribution driver (positive) | %s", signal)
+        for signal in top_neg:
+            logger.warning("attribution driver (negative) | %s", signal)
 
         return ScoreAttribution(
             category_contributions=category_contributions,

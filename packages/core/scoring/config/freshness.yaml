@@ -6,4 +6,6 @@ freshness_ttl_hours:
   downloads: 24
   deps_dev: 12
   identity: 24
+  kev: 24       # CISA catalog; entries are appended, rarely removed
+  epss: 24      # FIRST publishes daily scores
   static_analysis: null  # Immutable per archive SHA-256

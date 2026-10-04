@@ -1,9 +1,9 @@
 import logging
-import time
 
 from ...models.evidence import EvidenceProvenance
 from ...pipeline.context import AnalysisContext
 from ...sources.github import GitHubCollector
+from ...tracing import pick, stage_trace
 
 logger = logging.getLogger(__name__)
 
@@ -11,22 +11,47 @@ logger = logging.getLogger(__name__)
 class RepositoryStage:
     async def execute(self, context: AnalysisContext) -> None | EvidenceProvenance:
 
-        start_time = time.perf_counter()
-        logger.info(f"Repostory Stage Started\nCurrent Context: {context}\n")
+        with stage_trace(
+            "repository",
+            logger,
+            inputs=pick(context.package, ("name", "repository_url")),
+            dump=context.repository,
+        ) as span:
+            repo_url = context.package.repository_url
 
-        repo_url = context.package.repository_url
+            if repo_url is None:
+                span.output(status="MISSING", repository_url=None)
+                span.skip("no repository URL declared by the registry")
+                return None
 
-        if repo_url is not None:
             async with GitHubCollector() as github:
                 (repo_evidence, repo_evidence_provenance) = await github.collect(
                     context.package.repository_url
                 )
 
             context.repository = repo_evidence
-            context.provenance.append(repo_evidence_provenance)
+            if repo_evidence_provenance is not None:
+                context.provenance.append(repo_evidence_provenance)
 
-            end_time = time.perf_counter() - start_time
-
-            logger.info(
-                f"Repository Stage Completed in {end_time:.2f} seconds | {end_time * 1000:.2f} ms\n"
+            span.output(
+                **pick(
+                    context.repository,
+                    (
+                        "status",
+                        "repository_url",
+                        "stars",
+                        "forks",
+                        "watchers",
+                        "open_issues",
+                        "recent_commits_90d",
+                        "recent_issues_90d",
+                        "is_archived",
+                    ),
+                )
             )
+            if context.repository.status != "AVAILABLE":
+                span.degrade(
+                    f"github evidence unavailable for {repo_url}: "
+                    f"{context.repository.status}"
+                )
+            return None

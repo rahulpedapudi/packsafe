@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import hashlib
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+import logging
 
 import yaml
 
 from ..models.scoring import MetricDefinition
+from ..tracing import fmt_duration
+
+logger = logging.getLogger(__name__)
 
 CONFIG_DIR = Path(__file__).parent / "config"
 
@@ -64,7 +69,11 @@ def load_yaml(file_path: Path) -> dict[str, Any]:
 
 def load_engine_config(config_dir: Path | None = None) -> EngineConfig:
     """Loads, validates, and hashes all PackSafe configurations."""
+
     dir_path = config_dir or CONFIG_DIR
+
+    loading_start = time.perf_counter()
+    logger.info(f"Loading Engine Configs from {dir_path}")
 
     weights_data = load_yaml(dir_path / "weights.yaml")
     metrics_data = load_yaml(dir_path / "metrics.yaml")
@@ -163,7 +172,7 @@ def load_engine_config(config_dir: Path | None = None) -> EngineConfig:
             )
         seen_priorities.add(priority)
 
-    return EngineConfig(
+    config = EngineConfig(
         engine_version=weights_data.get("engine_version", "1.0.0"),
         config_version=weights_data.get("config_version", "2026-09-v1.2"),
         config_sha256=config_sha256,
@@ -176,3 +185,25 @@ def load_engine_config(config_dir: Path | None = None) -> EngineConfig:
         analysis_coverage_tiers=sources_data.get("analysis_coverage_tiers", {}),
         freshness_ttls=freshness_data.get("freshness_ttl_hours", {}),
     )
+
+    loading_duration = time.perf_counter() - loading_start
+    logger.info(
+        "engine config loaded | %d metrics, %d gates, %d profiles in %s | version=%s "
+        "sha256=%s",
+        len(metrics_dict),
+        len(gates_list),
+        len(config.profiles),
+        fmt_duration(loading_duration),
+        config.config_version,
+        config.config_sha256,
+    )
+    logger.debug("engine config detail | category_weights=%s sources=%s "
+        "coverage_tiers=%s gates=%s full=%r",
+        config.category_weights,
+        config.sources,
+        config.analysis_coverage_tiers,
+        [g["id"] for g in config.gates],
+        config,
+    )
+
+    return config

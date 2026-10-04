@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 import httpx
 
 from ..config import settings
 from ..models.dependencies import DependencyEvidence
+from ..tracing import log_http
 from .normalizers.dependency import DependencyNormalizer
 
 logger = logging.getLogger(__name__)
@@ -38,31 +40,78 @@ class DepsDevCollector:
         """Executes HTTP request with exponential backoff and rate limit handling."""
 
         for attempt in range(self.max_retries + 1):
+            request_start = time.perf_counter()
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     resp = await client.get(url)
+                request_elapsed = time.perf_counter() - request_start
+
+                log_http(
+                    logger,
+                    "deps_dev",
+                    method="GET",
+                    url=url,
+                    status=resp.status_code,
+                    elapsed=request_elapsed,
+                    attempt=attempt,
+                )
 
                 if resp.status_code == 200:
                     return resp.json()
                 elif resp.status_code == 404:
+                    logger.info(
+                        "deps.dev | 404 for %s: deps.dev has no record of this "
+                        "package/version",
+                        url,
+                    )
                     return None
                 elif resp.status_code == 429:
                     retry_after = float(
                         resp.headers.get("Retry-After", 1.0 + attempt * 2)
                     )
-                    await asyncio.sleep(min(retry_after, 5.0))
+                    backoff = min(retry_after, 5.0)
+                    logger.warning(
+                        "deps.dev rate limited, sleeping %.1fs before attempt %d",
+                        backoff,
+                        attempt + 1,
+                    )
+                    await asyncio.sleep(backoff)
                     continue
                 elif resp.status_code >= 500:
-                    await asyncio.sleep(0.5 * (2**attempt))
+                    backoff = 0.5 * (2**attempt)
+                    logger.warning(
+                        "deps.dev server error %d, sleeping %.1fs before attempt %d",
+                        resp.status_code,
+                        backoff,
+                        attempt + 1,
+                    )
+                    await asyncio.sleep(backoff)
                     continue
                 else:
+                    logger.warning(
+                        "deps.dev unexpected HTTP %d for %s", resp.status_code, url
+                    )
                     return None
             except (httpx.TimeoutException, httpx.NetworkError) as e:
-                logger.debug(f"deps.dev request error on attempt {attempt}: {e}")
+                logger.warning(
+                    "deps.dev network error on attempt %d/%d: %s",
+                    attempt + 1,
+                    self.max_retries + 1,
+                    e,
+                )
                 if attempt < self.max_retries:
                     await asyncio.sleep(0.5 * (2**attempt))
                 else:
+                    logger.warning(
+                        "deps.dev gave up after %d attempts; dependency evidence MISSING",
+                        self.max_retries + 1,
+                    )
                     return None
+        logger.warning(
+            "deps.dev exhausted %d attempts without a usable response for %s",
+            self.max_retries + 1,
+            url,
+        )
         return None
 
     async def collect_dependencies(
@@ -82,11 +131,20 @@ class DepsDevCollector:
 
         data = await self._execute_request(url)
         if not data:
+            logger.warning(
+                "deps.dev dependency tree unavailable for %s==%s; supply-chain metrics "
+                "will have no source",
+                package_name,
+                version,
+            )
             return DependencyEvidence(status="MISSING")
 
         nodes = data.get("nodes", [])
         edges = data.get("edges", [])
         if not nodes:
+            logger.warning(
+                "deps.dev returned 0 nodes for %s==%s", package_name, version
+            )
             return DependencyEvidence(status="MISSING")
 
         # 1. Identify root node index
@@ -167,10 +225,30 @@ class DepsDevCollector:
                 }
             )
 
-        return DependencyNormalizer.merge_sources(
+        merged = DependencyNormalizer.merge_sources(
             root_package=package_name,
             deps_dev_graph=graph_nodes,
         )
+
+        logger.info(
+            "deps.dev dependency tree | graph_nodes=%d edges=%d root_index=%d -> "
+            "direct=%s transitive=%s max_depth=%s",
+            len(nodes),
+            len(edges),
+            root_idx,
+            merged.direct_count,
+            merged.transitive_count,
+            merged.max_depth,
+        )
+        logger.debug(
+            "deps.dev resolved dependencies | %s",
+            {
+                n["name"]: f"{n['version']} (depth={n['depth']}, spec={n['version_spec'] or 'none'})"
+                for n in graph_nodes
+            },
+        )
+
+        return merged
 
     async def collect_dependents_count(
         self,
@@ -187,17 +265,46 @@ class DepsDevCollector:
 
         # Fallback to libraries.io public package API
         lib_url = f"https://libraries.io/api/{eco_norm}/{encoded_pkg}"
+        request_start = time.perf_counter()
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 resp = await client.get(lib_url)
-                if resp.status_code == 200:
-                    lib_data = resp.json()
-                    cnt = lib_data.get("dependents_count")
-                    if cnt is not None:
-                        return (int(cnt), "libraries_io")
-        except Exception as e:
-            logger.error(f"Error collecting dependents count from libraries.io: {e}")
+            request_elapsed = time.perf_counter() - request_start
 
+            log_http(
+                logger,
+                "libraries_io",
+                method="GET",
+                url=lib_url,
+                status=resp.status_code,
+                elapsed=request_elapsed,
+            )
+
+            if resp.status_code == 200:
+                lib_data = resp.json()
+                cnt = lib_data.get("dependents_count")
+                if cnt is not None:
+                    logger.info(
+                        "dependents count | source=libraries_io count=%s", cnt
+                    )
+                    return (int(cnt), "libraries_io")
+                logger.warning(
+                    "libraries.io responded 200 for %s but returned no "
+                    "dependents_count field",
+                    package_name,
+                )
+        except Exception as e:
+            logger.warning(
+                "dependents count | libraries.io failed (%s: %s)",
+                type(e).__name__,
+                e,
+            )
+
+        logger.warning(
+            "dependents count unavailable for %s from any source; the adoption "
+            "metric dependents_count is MISSING",
+            package_name,
+        )
         return (None, "missing")
 
 

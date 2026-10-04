@@ -273,6 +273,7 @@ import asyncio
 import logging
 import os
 import re
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -280,6 +281,7 @@ import httpx
 
 from ..config import settings
 from ..models.evidence import EvidenceProvenance, RepositoryEvidence
+from ..tracing import fmt_fields, log_http
 
 logger = logging.getLogger(__name__)
 
@@ -336,16 +338,26 @@ class GitHubCollector:
         client = self._get_client()
 
         for attempt in range(self.max_retries + 1):
-            logger.info(f"Attempt {attempt}: {url}")
+            request_start = time.perf_counter()
             try:
                 resp = await client.get(url, headers=headers, params=params)
+                request_elapsed = time.perf_counter() - request_start
+
+                log_http(
+                    logger,
+                    "github",
+                    method="GET",
+                    url=url,
+                    status=resp.status_code,
+                    elapsed=request_elapsed,
+                    attempt=attempt,
+                    detail="auth=token" if self.token else "auth=anonymous",
+                )
 
                 if resp.status_code == 200:
-                    logger.info(f"Attempt {attempt}: {url} - Success")
                     return resp
 
                 elif resp.status_code in (403, 429):
-                    logger.warning(f"Attempt {attempt}: {url} - Rate limit")
                     retry_after = resp.headers.get("Retry-After")
                     sleep_s = (
                         min(float(retry_after), 5.0)
@@ -354,23 +366,49 @@ class GitHubCollector:
                     )
 
                     if attempt < self.max_retries:
+                        logger.warning(
+                            "github rate limited on %s; sleeping %.1fs before attempt %d",
+                            url,
+                            sleep_s,
+                            attempt + 1,
+                        )
                         await asyncio.sleep(sleep_s)
                         continue
+                    logger.warning(
+                        "github rate limited on %s and out of retries; evidence MISSING "
+                        "(set GITHUB_TOKEN to raise the limit from 60/h)",
+                        url,
+                    )
                     return resp
 
                 elif resp.status_code >= 500:
-                    logger.warning(f"Attempt {attempt}: {url} - Server error")
                     if attempt < self.max_retries:
-                        await asyncio.sleep(0.5 * (2**attempt))
+                        backoff = 0.5 * (2**attempt)
+                        logger.warning(
+                            "github server error %d on %s; sleeping %.1fs before attempt %d",
+                            resp.status_code,
+                            url,
+                            backoff,
+                            attempt + 1,
+                        )
+                        await asyncio.sleep(backoff)
                         continue
                     return resp
 
                 else:
-                    logger.warning(f"Attempt {attempt}: {url} - Other error")
+                    logger.warning(
+                        "github unexpected HTTP %d on %s", resp.status_code, url
+                    )
                     return resp
 
-            except (httpx.TimeoutException, httpx.NetworkError):
-                logger.warning(f"Attempt {attempt}: {url} - Network error")
+            except (httpx.TimeoutException, httpx.NetworkError) as e:
+                logger.warning(
+                    "github network error on attempt %d/%d for %s: %s",
+                    attempt + 1,
+                    self.max_retries + 1,
+                    url,
+                    e,
+                )
                 if attempt < self.max_retries:
                     await asyncio.sleep(0.5 * (2**attempt))
                     continue
@@ -391,10 +429,15 @@ class GitHubCollector:
         self, repo_url: str | None
     ) -> tuple[RepositoryEvidence, EvidenceProvenance | None]:
         """Collect repository evidence from GitHub."""
+        collect_start = time.perf_counter()
 
         owner_repo = self.extract_owner_repo(repo_url)
 
         if not owner_repo:
+            logger.info(
+                "github collect skipped | %s is not a parseable GitHub URL",
+                repo_url or "no repository URL",
+            )
             return (RepositoryEvidence(status="MISSING"), None)
 
         owner, repo = owner_repo
@@ -439,15 +482,55 @@ class GitHubCollector:
                     source_url=base_url,
                     retrieved_at=now,
                 )
+                logger.info(
+                    "github collect | %s",
+                    fmt_fields(
+                        {
+                            "repo": f"{owner}/{repo}",
+                            "stars": repo_ev.stars,
+                            "forks": repo_ev.forks,
+                            "watchers": repo_ev.watchers,
+                            "open_issues": repo_ev.open_issues,
+                            "commits_90d": repo_ev.recent_commits_90d,
+                            "issues_90d": repo_ev.recent_issues_90d,
+                            "archived": repo_ev.is_archived,
+                            "duration": f"{time.perf_counter() - collect_start:.3f}s",
+                        }
+                    ),
+                )
                 return (repo_ev, prov)
             elif resp and resp.status_code in (403, 429):
-                logger.warning(f"GitHub rate limit exceeded querying {owner}/{repo}.")
+                logger.warning(
+                    "github collect | rate limit exceeded for %s/%s; repository "
+                    "evidence MISSING, so maintenance and adoption metrics lose "
+                    "their source",
+                    owner,
+                    repo,
+                )
 
             elif resp and resp.status_code == 404:
-                logger.info(f"GitHub repository {owner}/{repo} not found (404).")
+                logger.warning(
+                    "github collect | %s/%s not found (404); the registry points at a "
+                    "repository that does not exist",
+                    owner,
+                    repo,
+                )
+            else:
+                logger.warning(
+                    "github collect | %s/%s failed (%s)",
+                    owner,
+                    repo,
+                    resp.status_code if resp else "no response",
+                )
 
         except Exception as e:
-            logger.debug(f"GitHub collection error for {owner}/{repo}: {e}")
+            logger.warning(
+                "github collect | unexpected error for %s/%s: %s: %s",
+                owner,
+                repo,
+                type(e).__name__,
+                e,
+            )
 
         return (RepositoryEvidence(status="MISSING"), None)
 

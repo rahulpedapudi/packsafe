@@ -8,12 +8,14 @@ import logging
 import shutil
 import tarfile
 import tempfile
+import time
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import httpx
 
+from ..tracing import fmt_duration, log_http
 from .safe_archive import ArchiveSecurityError, SafeArchiveExtractor
 
 logger = logging.getLogger(__name__)
@@ -136,9 +138,19 @@ class ArchiveCollector:
         client = self._get_client()
         hasher = hashlib.sha256()
         total_bytes = 0
+        request_start = time.perf_counter()
 
         async with client.stream("GET", download_url) as resp:
             if resp.status_code != 200:
+                log_http(
+                    logger,
+                    "archive",
+                    method="GET",
+                    url=download_url,
+                    status=resp.status_code,
+                    elapsed=time.perf_counter() - request_start,
+                    outcome="failed",
+                )
                 raise ArchiveSecurityError(
                     f"Failed to download archive from {download_url}: "
                     f"HTTP {resp.status_code}"
@@ -162,6 +174,23 @@ class ArchiveCollector:
                     hasher.update(chunk)
                     f.write(chunk)
 
+        request_elapsed = time.perf_counter() - request_start
+        log_http(
+            logger,
+            "archive",
+            method="GET",
+            url=download_url,
+            status=resp.status_code,
+            elapsed=request_elapsed,
+            detail=f"downloaded={total_bytes}B",
+        )
+        logger.debug(
+            "archive download | %s in %s (%.1f MB/s)",
+            total_bytes,
+            fmt_duration(request_elapsed),
+            total_bytes / request_elapsed / 1024 / 1024 if request_elapsed else 0.0,
+        )
+
         return hasher.hexdigest()
 
     # ------------------------------------------------------------------- public
@@ -181,15 +210,21 @@ class ArchiveCollector:
         archive_path = temp_dir / "distribution_archive"
         extract_dir = temp_dir / "extracted"
 
+        logger.info(
+            "archive collect | url=%s expected_sha256=%s",
+            download_url,
+            expected_sha256 or "none (integrity not verifiable)",
+        )
+
         try:
             calculated_sha = await self._download_with_retry(
                 download_url, archive_path
             )
 
             if expected_sha256 and expected_sha256.lower() != calculated_sha.lower():
-                logger.warning(
-                    "Archive SHA-256 mismatch for %s: expected %s, got %s.",
-                    download_url,
+                logger.error(
+                    "archive integrity FAILURE | expected sha256=%s calculated=%s | "
+                    "the downloaded bytes do not match what the registry advertised",
                     expected_sha256,
                     calculated_sha,
                 )
@@ -198,13 +233,25 @@ class ArchiveCollector:
                     f"got {calculated_sha}."
                 )
 
+            logger.info("archive integrity verified | sha256=%s", calculated_sha)
+
             extract_dir.mkdir(parents=True, exist_ok=True)
             kind = self._archive_kind(download_url, archive_path)
             # Extraction is CPU/IO bound: keep it off the event loop.
+            extract_start = time.perf_counter()
             extracted = await asyncio.to_thread(
                 self._extract, archive_path, extract_dir, kind
             )
             size_bytes = await asyncio.to_thread(self._total_extracted_size, extracted)
+            extract_elapsed = time.perf_counter() - extract_start
+
+            logger.info(
+                "archive extracted | kind=%s files=%d extracted_size=%dB in %s",
+                kind,
+                len(extracted),
+                size_bytes,
+                fmt_duration(extract_elapsed),
+            )
 
             return ExtractedArchive(
                 files=tuple(extracted),

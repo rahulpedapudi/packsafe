@@ -5,6 +5,8 @@ from .defaults import DEFAULT_CONFIG
 
 
 class Config:
+    """Reads and writes the user's local config.toml."""
+
     def __init__(self, config_path: Path):
         self.config_path = config_path
 

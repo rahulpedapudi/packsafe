@@ -7,6 +7,7 @@ from rich.console import Console
 from ...core.config import settings
 from ...core.db.database import engine, init_db
 from ...core.exceptions import ApplicationError, InitializationError
+from ...core.sources.kev import KEVCollector
 from ..config.config import Config
 from ..display.art import ASCII_ART1
 
@@ -14,6 +15,19 @@ app = typer.Typer()
 console = Console()
 
 logger = logging.getLogger(__name__)
+
+
+async def _warm_kev_cache() -> int:
+    """Pre-fetches the CISA KEV catalog into the on-disk cache.
+
+    Returns the number of cached entries, or 0 if the feed was unreachable.
+    """
+    try:
+        async with KEVCollector() as collector:
+            return len(await collector.fetch_catalog())
+    except Exception as e:
+        logger.debug(f"KEV cache warm-up failed: {e}")
+        return 0
 
 
 @app.command()
@@ -44,6 +58,19 @@ def init():
             if not cache_exists:
                 # creates cache.db file
                 asyncio.run(init_db(engine))
+
+            # Warm the CISA KEV catalog cache once, so the first analysis does not pay
+            # for a ~1700-entry download. Best effort: a failure here must not block
+            # initialization, and the collector falls back to a live fetch later.
+            kev_entries = asyncio.run(_warm_kev_cache())
+            if kev_entries:
+                console.print(
+                    f"[dim]Cached {kev_entries} CISA KEV entries for offline use.[/dim]"
+                )
+            else:
+                console.print(
+                    "[yellow]Could not pre-cache CISA KEV; it will be fetched on first use.[/yellow]"
+                )
 
         logger.info(f"PackSafe root: {app_root}")
         logger.info(f"PackSafe config: {config_file}")

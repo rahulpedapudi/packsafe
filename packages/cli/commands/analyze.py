@@ -14,6 +14,7 @@ from ...core.exceptions import (
 )
 from ...core.models.package import PackageRequest
 from ...core.pipeline.analysis import AnalysisPipeline
+from ...core.tracing import fmt_fields
 
 app = typer.Typer()
 console = Console()
@@ -42,10 +43,12 @@ def analyze(package_name: str, version: str | None = None, ecosystem: str = "pyp
             spinner="dots",
         ):
             logger.info(f"Analyzing Package - {package_name}")
+            logger.debug("analysis context snapshot | %r", req)
             pipeline = AnalysisPipeline()
             result = asyncio.run(pipeline.run(req))
 
     except PackageNotFoundError as e:
+        logger.warning("analyze aborted | package not found: %s", e)
         console.print(
             Panel(
                 f"[bold red]Not Found:[/bold red] Package [yellow]'{e.package_name}'[/yellow] does not exist on [blue]{e.ecosystem}[/blue].\n"
@@ -57,6 +60,7 @@ def analyze(package_name: str, version: str | None = None, ecosystem: str = "pyp
         raise typer.Exit(code=1)
 
     except RegistryAPIError as e:
+        logger.error("analyze aborted | registry API error: %s", e)
         status_info = f" (Status code: {e.status_code})" if e.status_code else ""
         console.print(
             Panel(
@@ -69,6 +73,7 @@ def analyze(package_name: str, version: str | None = None, ecosystem: str = "pyp
         raise typer.Exit(code=2)
 
     except InvalidPackageDataError as e:
+        logger.error("analyze aborted | invalid package data: %s", e)
         console.print(
             Panel(
                 f"[bold red]Parsing Failure:[/bold red] Failed to parse package details.\n"
@@ -81,9 +86,15 @@ def analyze(package_name: str, version: str | None = None, ecosystem: str = "pyp
 
     except KeyboardInterrupt:
         console.print("\n[bold yellow]Cancelled by user.[/bold yellow]")
+        logger.warning("analyze aborted by user (KeyboardInterrupt)")
         raise typer.Exit(code=130)
 
     except Exception as e:
+        # The console shows a friendly panel; the traceback belongs in the log, where it
+        # can actually be diagnosed.
+        logger.exception(
+            "analyze failed with an unhandled error: %s: %s", type(e).__name__, e
+        )
         console.print(
             Panel(
                 f"[bold red]Unexpected Error:[/bold red] An internal pipeline crash occurred.\n"
@@ -95,6 +106,21 @@ def analyze(package_name: str, version: str | None = None, ecosystem: str = "pyp
         raise typer.Exit(code=1)
 
     pkg = result
+
+    logger.info(
+        "analyze verdict | %s",
+        fmt_fields(
+            {
+                "final_score": round(pkg.final_score, 2),
+                "base_score": round(pkg.base_score, 2),
+                "risk_level": pkg.risk_level.value,
+                "decision": pkg.decision.value,
+                "confidence": pkg.confidence,
+                "findings": len(pkg.findings),
+                "gates_triggered": sum(1 for g in pkg.gates if g.triggered),
+            }
+        ),
+    )
 
     # ---------------------------------------------------------------- summary
     header_text = Text()

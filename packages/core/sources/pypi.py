@@ -38,7 +38,12 @@ class PyPIRegistry:
 
                 if response.status_code == 200:
                     # extracts all the package info from pypi
-                    return (True, self.extract_metadata(package.name, response.json()))
+                    return (
+                        True,
+                        self.extract_metadata(
+                            package.name, package.version, response.json()
+                        ),
+                    )
                 else:
                     return (False, None)
 
@@ -59,14 +64,16 @@ class PyPIRegistry:
         )
 
     def extract_metadata(
-        self, name: str, data: dict
+        self, name: str, version: str | None, data: dict
     ) -> tuple[PackageIdentity, RegistryEvidence, EvidenceProvenance, str | None]:
         now = datetime.now(UTC)
 
         info = data.get("info", {})
         releases = data.get("releases", {})
 
-        resolved_version = info.get("version", "1.0.0")
+        resolved_version = (
+            version if version is not None else info.get("version", "1.0.0")
+        )
         project_urls = info.get("project_urls") or {}
 
         repo_url = self._extract_repository_url(project_urls)

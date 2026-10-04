@@ -56,3 +56,28 @@ class RepositoryEvidence:
     is_archived: bool = False
     default_branch: str = "main"
     status: EvidenceStatus = EvidenceStatus.AVAILABLE
+
+
+@dataclass(frozen=True)
+class IdentityEvidence:
+    """Package name similarity and publisher identity."""
+
+    target_popular_package: str | None = None
+    name_similarity: float | None = None
+    context_risk: float | None = None
+    typosquatting_risk: float | None = None
+    publisher_anomaly_score: float | None = None
+    package_repo_mismatch: bool = False
+    status: str = EvidenceStatus.AVAILABLE
+
+
+@dataclass(frozen=True)
+class LicenseEvidence:
+    """License compliance and extraction."""
+
+    declared_license: str | None = None
+    spdx_id: str = "UNKNOWN"
+    is_osi_approved: bool = True
+    is_copyleft: bool = False
+    license_file_present: bool = True
+    status: str = EvidenceStatus.AVAILABLE

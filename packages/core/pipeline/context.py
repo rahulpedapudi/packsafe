@@ -2,8 +2,15 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from ..models.dependencies import DependencyEvidence
-from ..models.evidence import EvidenceProvenance, RegistryEvidence, RepositoryEvidence
+from ..models.evidence import (
+    EvidenceProvenance,
+    IdentityEvidence,
+    LicenseEvidence,
+    RegistryEvidence,
+    RepositoryEvidence,
+)
 from ..models.package import PackageIdentity, PackageRequest
+from ..models.static_analysis import StaticAnalysisEvidence
 from ..models.vulnerability import VulnerabilityEvidence
 
 
@@ -32,7 +39,17 @@ class AnalysisContext:
         default_factory=DependencyEvidence
     )  # info about the package dependencies
 
-    # static_analysis:
+    static_analysis: StaticAnalysisEvidence = field(
+        default_factory=StaticAnalysisEvidence
+    )  # static analysis of the package
+
+    identity: IdentityEvidence = field(
+        default_factory=IdentityEvidence
+    )  # package identity
+
+    license: LicenseEvidence = field(
+        default_factory=LicenseEvidence
+    )  # license information
 
     provenance: list[EvidenceProvenance] = field(
         default_factory=list

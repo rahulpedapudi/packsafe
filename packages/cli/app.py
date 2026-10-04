@@ -1,6 +1,6 @@
 import typer
 
-from ..core.logging import setup_logging
+from ..core.logging_config import setup_logging
 from .commands.analyze import app as analyze_app
 from .commands.audit import app as audit_app
 from .commands.init import app as init_app

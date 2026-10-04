@@ -12,39 +12,38 @@ from ...core.exceptions import (
     PackageNotFoundError,
     RegistryAPIError,
 )
-from ...core.models.package import PackageMetadata, PackageRequest
+from ...core.models.package import PackageRequest
 from ...core.pipeline.analysis import AnalysisPipeline
 
 app = typer.Typer()
 console = Console()
 logger = logging.getLogger(__name__)
 
+RISK_STYLE = {
+    "SAFE": "bold green",
+    "LOW": "green",
+    "MODERATE": "yellow",
+    "HIGH": "bold red",
+    "CRITICAL": "bold white on red",
+}
+
+DECISION_STYLE = {"ALLOW": "bold green", "WARN": "bold yellow", "BLOCK": "bold red"}
+
 
 @app.command()
-def analyze(package_name: str):
-    # !do i need to pass the version of the package explicitly? or is there a way to retrieve the package version?
-    req: PackageRequest = PackageRequest(package_name)
+def analyze(package_name: str, version: str | None = None, ecosystem: str = "pypi"):
+    req: PackageRequest = PackageRequest(
+        name=package_name, version=version, ecosystem=ecosystem
+    )
 
     try:
         with console.status(
-            f"[bold cyan]Analyzing package[/bold cyan] [bold green]{req.name}[/bold green]...",
+            f"[bold cyan]Analyzing package[/bold cyan] [bold green]{package_name}[/bold green]...",
             spinner="dots",
         ):
             logger.info(f"Analyzing Package - {package_name}")
-            # initializes analysis pipeline
             pipeline = AnalysisPipeline()
-
-            # pipeline return analysis context which contains the infomation accumulated during the analysis
-            # running in an event loop because the pipeline is async
-            context = asyncio.run(pipeline.run(req))
-
-        # TODO: if package is not found, suggest alternative packages instead of just showing error and exiting; this should be interactive.
-        if not context.package or not context.package.exists:
-            raise PackageNotFoundError(package_name, req.ecosystem)
-
-    except KeyboardInterrupt:
-        console.print("\n[bold yellow]Cancelled by user.[/bold yellow]")
-        raise typer.Exit(code=130)
+            result = asyncio.run(pipeline.run(req))
 
     except PackageNotFoundError as e:
         console.print(
@@ -61,7 +60,7 @@ def analyze(package_name: str):
         status_info = f" (Status code: {e.status_code})" if e.status_code else ""
         console.print(
             Panel(
-                f"[bold red]Registry API Error:[/bold red] Could not reach the {req.ecosystem} API{status_info}.\n"
+                f"[bold red]Registry API Error:[/bold red] Could not reach the [blue]{req.ecosystem}[/blue] API{status_info}.\n"
                 f"[dim]Details: {e}[/dim]",
                 title="[bold red]Network Error[/bold red]",
                 border_style="red",
@@ -80,8 +79,11 @@ def analyze(package_name: str):
         )
         raise typer.Exit(code=3)
 
+    except KeyboardInterrupt:
+        console.print("\n[bold yellow]Cancelled by user.[/bold yellow]")
+        raise typer.Exit(code=130)
+
     except Exception as e:
-        # Fallback unexpected internal crash
         console.print(
             Panel(
                 f"[bold red]Unexpected Error:[/bold red] An internal pipeline crash occurred.\n"
@@ -92,56 +94,85 @@ def analyze(package_name: str):
         )
         raise typer.Exit(code=1)
 
-    pkg = context.package
-    meta = pkg.metadata or PackageMetadata()
+    pkg = result
 
-    # Create main overview panel header
+    # ---------------------------------------------------------------- summary
     header_text = Text()
-    header_text.append(f"{pkg.name} ", style="bold magenta")
+    header_text.append(f"{pkg.package_name} ", style="bold magenta")
+    header_text.append(f"v{pkg.version or 'Unknown'}\n", style="bold cyan")
+    header_text.append(
+        f"{pkg.final_score:.1f}/100  ",
+        style=RISK_STYLE.get(pkg.risk_level.value, "white"),
+    )
+    header_text.append(
+        pkg.risk_level.value, style=RISK_STYLE.get(pkg.risk_level.value, "white")
+    )
+    header_text.append("   decision: ", style="dim")
+    header_text.append(
+        pkg.decision.value, style=DECISION_STYLE.get(pkg.decision.value, "white")
+    )
+    header_text.append(f"\nconfidence: {pkg.confidence:.1f}%", style="dim")
 
-    # version is always the latest, cuz we are displaying the info of the latest release
-    header_text.append(f"v{meta.version or 'Unknown'}\n", style="bold cyan")
+    console.print(Panel(header_text, title="PackSafe Verdict", border_style="cyan"))
 
-    if meta.description:
-        header_text.append(f"{meta.description}\n", style="italic white")
-
-    console.print(Panel(header_text, title="Package Overview", border_style="cyan"))
-
-    # Metadata & Details Table
+    # ------------------------------------------------------------- categories
     table = Table(
-        title="Metadata & Release Details", show_header=True, header_style="bold blue"
+        title="Security Categories", show_header=True, header_style="bold blue"
     )
-    table.add_column("Property", style="dim", width=20)
-    table.add_column("Value")
+    table.add_column("Category", style="dim", width=16)
+    table.add_column("Score", justify="right", width=8)
+    table.add_column("Weight", justify="right", width=8)
+    table.add_column("Status", width=14)
 
-    table.add_row("Ecosystem", pkg.ecosystem)
-    table.add_row(
-        "Initial Release",
-        meta.initial_release_date.strftime("%Y-%m-%d")
-        if meta.initial_release_date
-        else "N/A",
-    )
-    table.add_row(
-        "Last Release",
-        meta.last_release_date.strftime("%Y-%m-%d")
-        if meta.last_release_date
-        else "N/A",
-    )
-
-    # Render Project URLs
-    if meta.project_urls:
-        urls_str = "\n".join(
-            [f"[link={v}]{k}[/link]: {v}" for k, v in meta.project_urls.items()]
+    for name, cat in pkg.categories.items():
+        table.add_row(
+            name,
+            f"{cat.score:.1f}",
+            f"{cat.weight:.2f}",
+            cat.status.value,
         )
-        table.add_row("Project Links", urls_str)
-
-    # TODO: i dont possibly need these
-    # Render Direct Dependencies count / list preview
-    deps_count = len(meta.raw_deps) if meta.raw_deps else 0
-    deps_preview = ", ".join(meta.raw_deps[:5]) if meta.raw_deps else "None"
-    if deps_count > 5:
-        deps_preview += f" ... (+{deps_count - 5} more)"
-
-    table.add_row("Dependencies", f"{deps_count} total ({deps_preview})")
 
     console.print(table)
+
+    # --------------------------------------------------------------- findings
+    if pkg.findings:
+        ft = Table(
+            title=f"Findings ({len(pkg.findings)})",
+            show_header=True,
+            header_style="bold blue",
+        )
+        ft.add_column("Severity", width=10)
+        ft.add_column("Finding", style="bold")
+        ft.add_column("Confidence", justify="right", width=11)
+        ft.add_column("Evidence", style="dim")
+
+        for f in pkg.findings:
+            ft.add_row(
+                f.severity,
+                f.title,
+                f"{f.confidence:.2f}",
+                (f.evidence or "")[:60],
+            )
+
+        console.print(ft)
+
+    # ------------------------------------------------------------------ gates
+    triggered = [g for g in pkg.gates if g.triggered]
+    if triggered:
+        gt = Table(
+            title="Triggered Security Gates", show_header=True, header_style="bold red"
+        )
+        gt.add_column("Gate", style="bold")
+        gt.add_column("Severity", width=10)
+        gt.add_column("Reason", style="dim")
+        for g in triggered:
+            gt.add_row(g.gate_id, g.severity.value, g.reason)
+        console.print(gt)
+
+    # -------------------------------------------------------- coverage summary
+    cov = pkg.evidence_coverage_summary
+    console.print(
+        f"[dim]Evidence coverage: {cov['available']} available, "
+        f"{cov['missing']} missing, {cov['stale']} stale, "
+        f"{cov['invalid']} invalid, {cov['not_applicable']} n/a[/dim]"
+    )

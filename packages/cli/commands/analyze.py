@@ -1,11 +1,10 @@
 import asyncio
 import logging
+from typing import Annotated
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
 
 from ...core.exceptions import (
     InvalidPackageDataError,
@@ -15,37 +14,45 @@ from ...core.exceptions import (
 from ...core.models.package import PackageRequest
 from ...core.pipeline.analysis import AnalysisPipeline
 from ...core.tracing import fmt_fields
+from ..display.report import render_report
 
 app = typer.Typer()
 console = Console()
 logger = logging.getLogger(__name__)
 
-RISK_STYLE = {
-    "SAFE": "bold green",
-    "LOW": "green",
-    "MODERATE": "yellow",
-    "HIGH": "bold red",
-    "CRITICAL": "bold white on red",
-}
-
-DECISION_STYLE = {"ALLOW": "bold green", "WARN": "bold yellow", "BLOCK": "bold red"}
-
 
 @app.command()
-def analyze(package_name: str, version: str | None = None, ecosystem: str = "pypi"):
-    req: PackageRequest = PackageRequest(
-        name=package_name, version=version, ecosystem=ecosystem
-    )
+def analyze(
+    package_name: Annotated[str, typer.Argument(help="Name of the package to analyze")],
+    version: Annotated[
+        str | None,
+        typer.Option("--version", "-V", help="Analyze a specific version (default: latest)."),
+    ] = None,
+    ecosystem: Annotated[
+        str,
+        typer.Option("--ecosystem", "-e", help="Registry to look the package up in."),
+    ] = "pypi",
+    show_all: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            "-a",
+            help="List every risk factor and full gate reason instead of the collapsed summary.",
+        ),
+    ] = False,
+):
+    """Analyze a package and report its supply-chain risk."""
+    req: PackageRequest = PackageRequest(name=package_name, version=version, ecosystem=ecosystem)
 
     try:
         with console.status(
-            f"[bold cyan]Analyzing package[/bold cyan] [bold green]{package_name}[/bold green]...",
+            f"[bold cyan]Analyzing[/bold cyan] [bold green]{package_name}[/bold green]...",
             spinner="dots",
         ):
             logger.info(f"Analyzing Package - {package_name}")
             logger.debug("analysis context snapshot | %r", req)
             pipeline = AnalysisPipeline()
-            result = asyncio.run(pipeline.run(req))
+            outcome = asyncio.run(pipeline.run_detailed(req))
 
     except PackageNotFoundError as e:
         logger.warning("analyze aborted | package not found: %s", e)
@@ -92,9 +99,7 @@ def analyze(package_name: str, version: str | None = None, ecosystem: str = "pyp
     except Exception as e:
         # The console shows a friendly panel; the traceback belongs in the log, where it
         # can actually be diagnosed.
-        logger.exception(
-            "analyze failed with an unhandled error: %s: %s", type(e).__name__, e
-        )
+        logger.exception("analyze failed with an unhandled error: %s: %s", type(e).__name__, e)
         console.print(
             Panel(
                 f"[bold red]Unexpected Error:[/bold red] An internal pipeline crash occurred.\n"
@@ -105,100 +110,21 @@ def analyze(package_name: str, version: str | None = None, ecosystem: str = "pyp
         )
         raise typer.Exit(code=1)
 
-    pkg = result
+    score = outcome.score
 
     logger.info(
         "analyze verdict | %s",
         fmt_fields(
             {
-                "final_score": round(pkg.final_score, 2),
-                "base_score": round(pkg.base_score, 2),
-                "risk_level": pkg.risk_level.value,
-                "decision": pkg.decision.value,
-                "confidence": pkg.confidence,
-                "findings": len(pkg.findings),
-                "gates_triggered": sum(1 for g in pkg.gates if g.triggered),
+                "final_score": round(score.final_score, 2),
+                "base_score": round(score.base_score, 2),
+                "risk_level": score.risk_level.value,
+                "decision": score.decision.value,
+                "confidence": score.confidence,
+                "findings": len(score.findings),
+                "gates_triggered": sum(1 for g in score.gates if g.triggered),
             }
         ),
     )
 
-    # ---------------------------------------------------------------- summary
-    header_text = Text()
-    header_text.append(f"{pkg.package_name} ", style="bold magenta")
-    header_text.append(f"v{pkg.version or 'Unknown'}\n", style="bold cyan")
-    header_text.append(
-        f"{pkg.final_score:.1f}/100  ",
-        style=RISK_STYLE.get(pkg.risk_level.value, "white"),
-    )
-    header_text.append(
-        pkg.risk_level.value, style=RISK_STYLE.get(pkg.risk_level.value, "white")
-    )
-    header_text.append("   decision: ", style="dim")
-    header_text.append(
-        pkg.decision.value, style=DECISION_STYLE.get(pkg.decision.value, "white")
-    )
-    header_text.append(f"\nconfidence: {pkg.confidence:.1f}%", style="dim")
-
-    console.print(Panel(header_text, title="PackSafe Verdict", border_style="cyan"))
-
-    # ------------------------------------------------------------- categories
-    table = Table(
-        title="Security Categories", show_header=True, header_style="bold blue"
-    )
-    table.add_column("Category", style="dim", width=16)
-    table.add_column("Score", justify="right", width=8)
-    table.add_column("Weight", justify="right", width=8)
-    table.add_column("Status", width=14)
-
-    for name, cat in pkg.categories.items():
-        table.add_row(
-            name,
-            f"{cat.score:.1f}",
-            f"{cat.weight:.2f}",
-            cat.status.value,
-        )
-
-    console.print(table)
-
-    # --------------------------------------------------------------- findings
-    if pkg.findings:
-        ft = Table(
-            title=f"Findings ({len(pkg.findings)})",
-            show_header=True,
-            header_style="bold blue",
-        )
-        ft.add_column("Severity", width=10)
-        ft.add_column("Finding", style="bold")
-        ft.add_column("Confidence", justify="right", width=11)
-        ft.add_column("Evidence", style="dim")
-
-        for f in pkg.findings:
-            ft.add_row(
-                f.severity,
-                f.title,
-                f"{f.confidence:.2f}",
-                (f.evidence or "")[:60],
-            )
-
-        console.print(ft)
-
-    # ------------------------------------------------------------------ gates
-    triggered = [g for g in pkg.gates if g.triggered]
-    if triggered:
-        gt = Table(
-            title="Triggered Security Gates", show_header=True, header_style="bold red"
-        )
-        gt.add_column("Gate", style="bold")
-        gt.add_column("Severity", width=10)
-        gt.add_column("Reason", style="dim")
-        for g in triggered:
-            gt.add_row(g.gate_id, g.severity.value, g.reason)
-        console.print(gt)
-
-    # -------------------------------------------------------- coverage summary
-    cov = pkg.evidence_coverage_summary
-    console.print(
-        f"[dim]Evidence coverage: {cov['available']} available, "
-        f"{cov['missing']} missing, {cov['stale']} stale, "
-        f"{cov['invalid']} invalid, {cov['not_applicable']} n/a[/dim]"
-    )
+    render_report(console, outcome, expand=show_all)

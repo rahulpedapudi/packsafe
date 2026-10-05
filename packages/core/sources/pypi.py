@@ -74,9 +74,12 @@ class PyPIRegistry:
             logger.info("pypi lookup complete | duration=%s", fmt_duration(elapsed))
 
     def _extract_repository_url(self, info: dict[str, Any]) -> str | None:
+        # PyPI has no standard key for this: popular projects use "Source", "Code" or
+        # "Repository" interchangeably, and a few only declare a "Homepage".
         return (
             info.get("Source")
             or info.get("Repository")
+            or info.get("Code")
             or info.get("Source Code")
             or info.get("Homepage")
         )
@@ -209,7 +212,9 @@ class PyPIRegistry:
             maintainer_count=parsed_maintainer_count,
             # downloads_30d=downloads_30d,
             # download_growth_rate=growth_rate,
-            declared_license=info.get("license") or "UNKNOWN",
+            # Modern metadata (PEP 639) dropped the free-text license field for
+            # license_expression; older projects only fill in one of the two.
+            declared_license=info.get("license") or info.get("license_expression") or "UNKNOWN",
             status="AVAILABLE",
         )
 

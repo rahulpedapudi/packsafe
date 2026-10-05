@@ -4,6 +4,7 @@ import time
 
 from ..exceptions import PackageNotFoundError
 from ..models.package import PackageRequest
+from ..models.result import AnalysisOutcome
 from ..models.scoring import ScoreResult
 from ..scoring.engine import ScoreEngine
 from ..sources.pypi import PyPIRegistry
@@ -23,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 class AnalysisPipeline:
     async def run(self, request: PackageRequest) -> ScoreResult:
+        """Runs the analysis and returns only the score."""
+        return (await self.run_detailed(request)).score
+
+    async def run_detailed(self, request: PackageRequest) -> AnalysisOutcome:
+        """Runs the analysis and returns the score with the evidence it was derived from."""
 
         analysis_start = time.perf_counter()
         # Spans accumulate per process, so a second analysis in the same process would
@@ -137,7 +143,7 @@ class AnalysisPipeline:
             len(context.provenance),
         )
         perf.log_summary(logger, wall_seconds=elapsed)
-        return score
+        return AnalysisOutcome(score=score, context=context)
 
 
 async def main():

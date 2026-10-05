@@ -91,7 +91,9 @@ class KEVCollector:
             self._last_fetched = fetched_at
         return catalog
 
-    def _write_disk_cache(self, catalog: dict[str, KEVEntry], fetched_at: float) -> None:
+    def _write_disk_cache(
+        self, catalog: dict[str, KEVEntry], fetched_at: float
+    ) -> None:
         """Best-effort persist. A failed write only costs a refetch next run."""
         payload = {
             "fetched_at": fetched_at,

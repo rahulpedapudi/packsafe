@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-packsafe = "packsafe_cli.main:app"
+packsafe = "packsafe_cli.app:app"
 
 [tool.uv.sources]
 packsafe-core = { workspace = true }

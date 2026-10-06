@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from ..core.logging_config import setup_logging
+from packsafe_core.logging_config import setup_logging
 from .commands.analyze import app as analyze_app
 from .commands.audit import app as audit_app
 from .commands.init import app as init_app

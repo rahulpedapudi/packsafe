@@ -6,14 +6,14 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
-from ...core.exceptions import (
+from packsafe_core.exceptions import (
     InvalidPackageDataError,
     PackageNotFoundError,
     RegistryAPIError,
 )
-from ...core.models.package import PackageRequest
-from ...core.pipeline.analysis import AnalysisPipeline
-from ...core.tracing import fmt_fields
+from packsafe_core.models.package import PackageRequest
+from packsafe_core.pipeline.analysis import AnalysisPipeline
+from packsafe_core.tracing import fmt_fields
 from ..display.report import render_report
 
 app = typer.Typer()

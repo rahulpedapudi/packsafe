@@ -22,9 +22,9 @@ from rich.prompt import Confirm
 from rich.table import Table
 from rich.text import Text
 
-from ...core.models.result import AnalysisOutcome
-from ...core.models.scoring import Decision, Finding, ScoreResult, SeverityRank
-from ...core.pipeline.context import AnalysisContext
+from packsafe_core.models.result import AnalysisOutcome
+from packsafe_core.models.scoring import Decision, Finding, ScoreResult, SeverityRank
+from packsafe_core.pipeline.context import AnalysisContext
 from .checks import build_checks, sort_findings
 from .theme import (
     DECISION_STYLE,

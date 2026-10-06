@@ -4,10 +4,10 @@ import logging
 import typer
 from rich.console import Console
 
-from ...core.config import settings
-from ...core.db.database import engine, init_db
-from ...core.exceptions import ApplicationError, InitializationError
-from ...core.sources.kev import KEVCollector
+from packsafe_core.config import settings
+from packsafe_core.db.database import engine, init_db
+from packsafe_core.exceptions import ApplicationError, InitializationError
+from packsafe_core.sources.kev import KEVCollector
 from ..config.config import Config
 from ..display.art import ASCII_ART1
 

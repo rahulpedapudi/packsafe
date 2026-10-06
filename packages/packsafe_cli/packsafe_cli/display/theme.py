@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ...core.models.scoring import Decision, GateSeverity, RiskLevel
+from packsafe_core.models.scoring import Decision, GateSeverity, RiskLevel
 
 
 @dataclass(frozen=True)

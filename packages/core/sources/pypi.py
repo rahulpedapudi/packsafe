@@ -25,7 +25,8 @@ class PyPIRegistry:
         start = time.perf_counter()
         url = f"{settings.PYPI_BASE_URL}/{package.name}/json"
         logger.info(
-            "pypi lookup | %s", fmt_fields({"package": package.name, "requested_version": package.version})
+            "pypi lookup | %s",
+            fmt_fields({"package": package.name, "requested_version": package.version}),
         )
 
         try:
@@ -44,10 +45,10 @@ class PyPIRegistry:
                 )
 
                 if response.status_code == 200:
-                    metadata = self.extract_metadata(
+                    metadata = await self.extract_metadata(
                         package.name, package.version, response.json()
                     )
-                    identity, reg_ev, prov, dist_url = metadata
+                    identity, reg_ev, _, dist_url = metadata
                     logger.info(
                         "pypi fetch ok | resolved_version=%s latest_version=%s "
                         "declared_license=%s dist_url=%s archive_sha256=%s",
@@ -84,7 +85,7 @@ class PyPIRegistry:
             or info.get("Homepage")
         )
 
-    def extract_metadata(
+    async def extract_metadata(
         self, name: str, version: str | None, data: dict
     ) -> tuple[PackageIdentity, RegistryEvidence, EvidenceProvenance, str | None]:
         now = datetime.now(UTC)
@@ -174,8 +175,7 @@ class PyPIRegistry:
                 resolved_version,
             )
 
-        # TODO: Implement download statistics from pypistats API
-        # downloads_30d, growth_rate = self.get_stats(package_name)
+        downloads_30d, growth_rate = await self._fetch_downloads(package_name=name)
 
         identity = PackageIdentity(
             name=name,
@@ -210,11 +210,13 @@ class PyPIRegistry:
             days_since_last_release=int(days_since_last) if days_since_last else None,
             project_maturity_days=int(maturity_days) if maturity_days else None,
             maintainer_count=parsed_maintainer_count,
-            # downloads_30d=downloads_30d,
-            # download_growth_rate=growth_rate,
+            downloads_30d=downloads_30d,
+            download_growth_rate=growth_rate,
             # Modern metadata (PEP 639) dropped the free-text license field for
             # license_expression; older projects only fill in one of the two.
-            declared_license=info.get("license") or info.get("license_expression") or "UNKNOWN",
+            declared_license=info.get("license")
+            or info.get("license_expression")
+            or "UNKNOWN",
             status="AVAILABLE",
         )
 
@@ -228,7 +230,27 @@ class PyPIRegistry:
         return (identity, reg_ev, prov, dist_url)
 
     # fetch stats from packsafe backend server
-    async def get_stats(self, package: PackageRequest): ...
+    # async def get_stats(self, package: PackageRequest): ...
+
+    # ! Not Ideal for production, use bigquery instead
+    async def _fetch_downloads(
+        self, package_name: str
+    ) -> tuple[int | None, float | None]:
+        """Queries pypistats for recent 30d download counts without fabricating unmeasured growth."""
+        stats_url = f"https://pypistats.org/api/packages/{package_name}/recent"
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(stats_url)
+                if resp.status_code == 200:
+                    data = resp.json().get("data", {})
+                    last_month = data.get("last_month")
+                if last_month is not None:
+                    # Previous 30-day baseline is not provided in pypistats recent endpoint;
+                    # truthfully return None for growth rather than an ad-hoc approximation.
+                    return (int(last_month), None)
+        except Exception:
+            pass
+        return (None, None)
 
 
 if __name__ == "__main__":

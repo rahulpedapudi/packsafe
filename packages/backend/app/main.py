@@ -6,7 +6,7 @@ app = FastAPI()
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"])
 
-app.include_router(pypi_router, prefix="/stats/pypi")
+app.include_router(pypi_router, prefix="/api/stats/pypi")
 
 
 @app.head("/")

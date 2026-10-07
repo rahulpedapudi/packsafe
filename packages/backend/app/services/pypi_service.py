@@ -1,4 +1,5 @@
 import os
+import time
 
 from dotenv import load_dotenv
 from google.cloud import bigquery
@@ -12,7 +13,8 @@ CREDS_PATH = os.getenv("CREDS_PATH")
 PROJECT_NAME = os.getenv("PROJECT_NAME")
 
 
-def get_stats(package: str, version: str | None, interval: int):
+def get_stats(package: str, version: str, interval: int):
+
     credentials = service_account.Credentials.from_service_account_file(CREDS_PATH)
 
     client = bigquery.Client(credentials=credentials, project=PROJECT_NAME)
@@ -24,7 +26,8 @@ def get_stats(package: str, version: str | None, interval: int):
         FROM
         `bigquery-public-data.pypi.file_downloads`
         WHERE
-        project = '{package}'
+        project = '{package}' 
+        AND file.version = '{version}'
         AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {interval} DAY)
         GROUP BY
         file.version
@@ -32,7 +35,11 @@ def get_stats(package: str, version: str | None, interval: int):
         download_count DESC
         LIMIT 5
     """
+
+    query_start = time.perf_counter()
     df = client.query(query).to_dataframe()
+    query_end = time.perf_counter()
+    print(f"Query time: {query_end - query_start}")
 
     # Convert DataFrame rows into a list of dicts:
     data = df.to_dict(orient="records")

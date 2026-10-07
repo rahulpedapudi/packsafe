@@ -13,8 +13,10 @@ def _metric_status(evidence_status: object) -> MetricStatus:
     """Maps an evidence status onto a metric status, defaulting to AVAILABLE."""
     if isinstance(evidence_status, MetricStatus):
         return evidence_status
+        
+    status_str = getattr(evidence_status, "value", evidence_status)
     try:
-        return MetricStatus(str(evidence_status).upper())
+        return MetricStatus(str(status_str).upper())
     except ValueError:
         return MetricStatus.AVAILABLE
 

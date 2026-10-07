@@ -9,3 +9,8 @@ members = [
     "packages/packsafe_cli",
     "packages/backend",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.10",
+]

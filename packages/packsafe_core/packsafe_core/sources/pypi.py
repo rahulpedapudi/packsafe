@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 
 from ..config import settings
+from ..exceptions import RegistryAPIError
 from ..models.evidence import EvidenceProvenance, RegistryEvidence
 from ..models.package import EcosystemType, PackageIdentity, PackageRequest
 from ..tracing import fmt_duration, fmt_fields, log_http
@@ -71,7 +72,7 @@ class PyPIRegistry:
 
         except httpx.HTTPError as e:
             logger.error("pypi fetch failed for %s: %s", package.name, e)
-            raise httpx.HTTPError(f"Could not fetch the data from pypi: {e}")
+            raise RegistryAPIError(f"Could not fetch the data from pypi: {e}")
         finally:
             elapsed = time.perf_counter() - start
             logger.info("pypi lookup complete | duration=%s", fmt_duration(elapsed))

@@ -9,6 +9,10 @@ dependencies = [
     "packaging>=26.2",
     "pyyaml>=6.0.3",
     "rapidfuzz>=3.14.6",
+    # packsafe_core.db is part of this package, not the backend: the CLI's `init`
+    # command imports it. The [asyncio] extra pulls in greenlet, which SQLAlchemy's
+    # async engine requires; without it an installed wheel fails on import.
+    "sqlalchemy[asyncio]>=2.0",
 ]
 
 [dependency-groups]

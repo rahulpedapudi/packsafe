@@ -40,7 +40,7 @@ echo "==> Installing the built wheels (not editable, not from the source tree)"
 # a published packsafe-core from an index instead of the one just built.
 uv pip install --python "$SANDBOX/.venv/bin/python" \
   "$DIST"/packsafe_core-*.whl \
-  "$DIST"/packsafe_cli-*.whl
+  "$DIST"/packsafe-[0-9]*.whl
 
 PACKSAFE="$SANDBOX/.venv/bin/packsafe"
 

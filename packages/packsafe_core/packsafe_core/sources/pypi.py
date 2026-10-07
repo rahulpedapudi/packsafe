@@ -71,8 +71,13 @@ class PyPIRegistry:
                 return (False, None)
 
         except httpx.HTTPError as e:
+            # httpx raises its own hierarchy (ConnectError, TimeoutException, ...), so the
+            # translation to a PackSafe exception has to happen here. Catching
+            # RegistryAPIError instead would never fire: nothing below raises it.
             logger.error("pypi fetch failed for %s: %s", package.name, e)
-            raise RegistryAPIError(f"Could not fetch the data from pypi: {e}")
+            raise RegistryAPIError(
+                f"Could not fetch the data from pypi: {e}"
+            ) from e
         finally:
             elapsed = time.perf_counter() - start
             logger.info("pypi lookup complete | duration=%s", fmt_duration(elapsed))

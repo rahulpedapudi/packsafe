@@ -12,6 +12,7 @@ from collections import Counter
 
 from packsafe_core.models.scoring import Finding, ScoreResult, SeverityRank
 from packsafe_core.pipeline.context import AnalysisContext
+
 from .theme import (
     OK,
     RISK,

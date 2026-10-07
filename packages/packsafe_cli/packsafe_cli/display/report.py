@@ -16,16 +16,17 @@ from __future__ import annotations
 import sys
 from collections import Counter
 
+from packsafe_core.models.result import AnalysisOutcome
+from packsafe_core.models.scoring import Decision, Finding, ScoreResult, SeverityRank
+from packsafe_core.pipeline.context import AnalysisContext
 from rich.console import Console
 from rich.padding import Padding
 from rich.prompt import Confirm
 from rich.table import Table
 from rich.text import Text
 
-from packsafe_core.models.result import AnalysisOutcome
-from packsafe_core.models.scoring import Decision, Finding, ScoreResult, SeverityRank
-from packsafe_core.pipeline.context import AnalysisContext
 from .checks import build_checks, sort_findings
+from .layout import print_fields, section
 from .theme import (
     DECISION_STYLE,
     GATE_SEVERITY_STYLE,
@@ -34,7 +35,6 @@ from .theme import (
     RISK_STYLE,
     RISK_WORD,
     RULE_STYLE,
-    SECTION_TITLE,
     SEVERITY_ORDER,
     SEVERITY_STYLE,
     WARN,
@@ -89,7 +89,9 @@ RECOMMENDATIONS = {
 LOW_CONFIDENCE = 60
 
 
-def render_report(console: Console, outcome: AnalysisOutcome, *, expand: bool = False) -> None:
+def render_report(
+    console: Console, outcome: AnalysisOutcome, *, expand: bool = False
+) -> None:
     """Prints the analysis report.
 
     Risk factors and policy gates collapse to a summary unless ``expand`` is set. When they
@@ -108,7 +110,11 @@ def render_report(console: Console, outcome: AnalysisOutcome, *, expand: bool = 
     _render_recommendation(console, score)
     _render_footer(console, score, context)
 
-    if not expand and _has_withheld_detail(score) and _offer_withheld_detail(console, score):
+    if (
+        not expand
+        and _has_withheld_detail(score)
+        and _offer_withheld_detail(console, score)
+    ):
         _render_risk_factors(console, score, expanded=True)
         _render_gates(console, score, expanded=True)
 
@@ -135,7 +141,9 @@ def _offer_withheld_detail(console: Console, score: ScoreResult) -> bool:
         hidden.append(plural(gates, "gate reason"))
 
     try:
-        return Confirm.ask(f"Show {' and '.join(hidden)}?", default=False, console=console)
+        return Confirm.ask(
+            f"Show {' and '.join(hidden)}?", default=False, console=console
+        )
     except (EOFError, KeyboardInterrupt):
         return False
 
@@ -148,10 +156,6 @@ def _render_header(console: Console, score: ScoreResult, ctx: AnalysisContext) -
     console.rule(style=RULE_STYLE)
     console.print()
 
-    fields = Table.grid(padding=(0, 2))
-    fields.add_column(style="bright_black", no_wrap=True)
-    fields.add_column(overflow="fold")
-
     rows = [
         ("Package", score.package_name or ctx.request.name),
         ("Version", score.version or ctx.package.version or "unknown"),
@@ -163,16 +167,7 @@ def _render_header(console: Console, score: ScoreResult, ctx: AnalysisContext) -
     if ctx.package.package_url:
         rows.append(("Homepage", short_url(ctx.package.package_url)))
 
-    for label, value in rows:
-        fields.add_row(label, value or "unknown")
-
-    console.print(fields)
-
-
-def _section(console: Console, title: str) -> None:
-    """Prints a blank line and a titled rule, the separator used between sections."""
-    console.print()
-    console.rule(Text(title, style=SECTION_TITLE), style=RULE_STYLE, align="left")
+    print_fields(console, rows)
 
 
 # -------------------------------------------------------------------- verdict
@@ -186,7 +181,9 @@ def _render_verdict(console: Console, score: ScoreResult) -> None:
     headline.append("SAFETY SCORE  ", style="bright_black")
     headline.append(f"{score.final_score:.0f}/100", style=f"bold {risk_style}")
     headline.append("   ")
-    headline.append(RISK_WORD.get(score.risk_level, score.risk_level.value), style=risk_style)
+    headline.append(
+        RISK_WORD.get(score.risk_level, score.risk_level.value), style=risk_style
+    )
     console.print(headline)
 
     console.print(_score_bar(console, score.final_score, risk_style))
@@ -217,7 +214,7 @@ def _render_checks(console: Console, score: ScoreResult, ctx: AnalysisContext) -
     if not rows:
         return
 
-    _section(console, "Checks")
+    section(console, "Checks")
 
     grid = Table.grid(padding=(0, 2))
     grid.add_column(no_wrap=True)
@@ -245,10 +242,12 @@ def _detail_text(row: CheckRow) -> Text:
 # ---------------------------------------------------------------- risk factors
 
 
-def _render_risk_factors(console: Console, score: ScoreResult, *, expanded: bool) -> None:
+def _render_risk_factors(
+    console: Console, score: ScoreResult, *, expanded: bool
+) -> None:
     findings = sort_findings(score.findings)
 
-    _section(console, f"Risk Factors ({len(findings)})")
+    section(console, f"Risk Factors ({len(findings)})")
 
     if not findings:
         console.print("  [green]✓[/green]  Nothing suspicious was found.")
@@ -288,7 +287,9 @@ def _severity_histogram(findings: list[Finding]) -> Text:
     for index, rank in enumerate(r for r in SEVERITY_ORDER if counts[r]):
         if index:
             line.append(" · ", style="bright_black")
-        line.append(f"{counts[rank]} {rank.lower()}", style=SEVERITY_STYLE.get(rank, "white"))
+        line.append(
+            f"{counts[rank]} {rank.lower()}", style=SEVERITY_STYLE.get(rank, "white")
+        )
 
     return line
 
@@ -298,13 +299,18 @@ def _worst_finding_line(findings: list[Finding]) -> str:
     return f"worst: {_one_line(findings[0].title, WORST_FINDING_LIMIT)}"
 
 
-def _print_withheld_summary(console: Console, summary: str | Text, headline: str) -> None:
+def _print_withheld_summary(
+    console: Console, summary: str | Text, headline: str
+) -> None:
     """Prints the collapsed body of a section plus how to see the rest."""
     console.print(summary)
     if headline:
         console.print(Padding(Text(headline, style="dim"), (0, 1, 0, 2)))
     console.print(
-        Padding(Text("Detail withheld · re-run with --all", style="bright_black"), (0, 1, 0, 2))
+        Padding(
+            Text("Detail withheld · re-run with --all", style="bright_black"),
+            (0, 1, 0, 2),
+        )
     )
 
 
@@ -355,14 +361,16 @@ def _render_gates(console: Console, score: ScoreResult, *, expanded: bool) -> No
     if not triggered:
         return
 
-    _section(console, "Policy Gates")
+    section(console, "Policy Gates")
 
     if not expanded:
         summary = Text("  ")
         for index, gate in enumerate(triggered):
             if index:
                 summary.append(" · ", style="bright_black")
-            summary.append(gate.gate_id, style=GATE_SEVERITY_STYLE.get(gate.severity, "red"))
+            summary.append(
+                gate.gate_id, style=GATE_SEVERITY_STYLE.get(gate.severity, "red")
+            )
             summary.append(f" ({gate.severity.value})", style="bright_black")
 
         _print_withheld_summary(console, summary, "")
@@ -407,7 +415,7 @@ def _render_recommendation(console: Console, score: ScoreResult) -> None:
         else "!"
     )
 
-    _section(console, "Recommendation")
+    section(console, "Recommendation")
 
     verdict = Text()
     verdict.append(f"  {icon}  ", style=style)
@@ -432,7 +440,9 @@ def _next_step(score: ScoreResult) -> str:
     if score.decision is Decision.BLOCK:
         return "Drop this name from your requirements and use the upstream package instead."
     if score.decision in (Decision.WARN, Decision.REVIEW):
-        return "Confirm the maintainer, read the release notes, then pin an exact version."
+        return (
+            "Confirm the maintainer, read the release notes, then pin an exact version."
+        )
     return "Pin the exact version and re-run the check on every upgrade."
 
 
@@ -444,7 +454,9 @@ def _render_footer(console: Console, score: ScoreResult, ctx: AnalysisContext) -
     total = sum(coverage.values()) if coverage else 0
 
     measured = (
-        f"{coverage.get('available', 0)}/{total} metrics measured" if total else "unavailable"
+        f"{coverage.get('available', 0)}/{total} metrics measured"
+        if total
+        else "unavailable"
     )
 
     parts = [

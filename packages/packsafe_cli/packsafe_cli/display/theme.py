@@ -45,7 +45,7 @@ RISK_STYLE = {
     RiskLevel.LOW: "green",
     RiskLevel.MODERATE: "yellow",
     RiskLevel.HIGH: "bold red",
-    RiskLevel.CRITICAL: "bold white on red",
+    RiskLevel.CRITICAL: "bold red",
 }
 
 RISK_WORD = {
@@ -77,6 +77,19 @@ GATE_SEVERITY_STYLE = {
     GateSeverity.HIGH: "red",
     GateSeverity.WARNING: "yellow",
 }
+
+# How each evidence-subsystem status reads. A collector that never ran must not look
+# like one that ran and found nothing.
+STATUS_STYLE = {
+    "AVAILABLE": "green",
+    "MISSING": "yellow",
+    "STALE": "yellow",
+    "INVALID": "red",
+    "NOT_APPLICABLE": "bright_black",
+}
+
+FIELD_LABEL_STYLE = "bright_black"
+FIELD_VALUE_STYLE = ""
 
 # Severity buckets in the order they should always be counted and printed: worst first.
 SEVERITY_ORDER = ("CRITICAL", "HIGH", "MEDIUM", "LOW")

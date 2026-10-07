@@ -7,9 +7,7 @@ app = typer.Typer()
 
 @app.command()
 def install(
-    package_name: Annotated[
-        str, typer.Argument(help="Name of the package to be installed")
-    ],
+    package_name: Annotated[str, typer.Argument(help="Name of the package to be installed")],
     # explain: Annotated[bool, typer.Option(False, help="Let AI explain")],
 ):
 

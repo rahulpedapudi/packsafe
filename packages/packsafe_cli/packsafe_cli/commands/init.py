@@ -2,12 +2,12 @@ import asyncio
 import logging
 
 import typer
-from rich.console import Console
-
 from packsafe_core.config import settings
 from packsafe_core.db.database import engine, init_db
 from packsafe_core.exceptions import ApplicationError, InitializationError
 from packsafe_core.sources.kev import KEVCollector
+from rich.console import Console
+
 from ..config.config import Config
 from ..display.art import ASCII_ART1
 
@@ -64,9 +64,7 @@ def init():
             # initialization, and the collector falls back to a live fetch later.
             kev_entries = asyncio.run(_warm_kev_cache())
             if kev_entries:
-                console.print(
-                    f"[dim]Cached {kev_entries} CISA KEV entries for offline use.[/dim]"
-                )
+                console.print(f"[dim]Cached {kev_entries} CISA KEV entries for offline use.[/dim]")
             else:
                 console.print(
                     "[yellow]Could not pre-cache CISA KEV; it will be fetched on first use.[/yellow]"

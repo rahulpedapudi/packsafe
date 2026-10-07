@@ -44,12 +44,12 @@ class IdentityStage:
             context.identity = IdentityEvidence(
                 target_popular_package=closest_pop if is_popular_match else None,
                 name_similarity=pop_sim if is_popular_match else 0.0,
-                typosquatting_risk=pop_sim if pop_sim >= TYPOSQUATTING_THRESHOLD else 0.0,
+                typosquatting_risk=pop_sim
+                if pop_sim >= TYPOSQUATTING_THRESHOLD
+                else 0.0,
                 package_repo_mismatch=is_repo_mismatch,
                 status=(
-                    "AVAILABLE"
-                    if context.registry.status == "AVAILABLE"
-                    else "MISSING"
+                    "AVAILABLE" if context.registry.status == "AVAILABLE" else "MISSING"
                 ),
             )
 

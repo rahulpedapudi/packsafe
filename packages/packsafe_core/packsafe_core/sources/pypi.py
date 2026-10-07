@@ -54,7 +54,9 @@ class PyPIRegistry:
                         "declared_license=%s dist_url=%s archive_sha256=%s",
                         identity.version,
                         reg_ev.latest_version,
-                        reg_ev.declared_license,
+                        "None"
+                        if not reg_ev.declared_license
+                        else "License information is available",
                         dist_url or "none",
                         identity.archive_hash or "none",
                     )
@@ -107,6 +109,7 @@ class PyPIRegistry:
                 upload_str = file_info.get("upload_time_iso_8601") or file_info.get(
                     "upload_time"
                 )
+
                 if upload_str:
                     try:
                         dt = datetime.fromisoformat(upload_str)
@@ -119,6 +122,7 @@ class PyPIRegistry:
                             version_timestamps[ver] = dt
                     except Exception as e:
                         logger.info(f"Failed to Parse upload date: {e}")
+
                 logger.debug(
                     "pypi parse | release %s -> earliest upload %s",
                     ver,
@@ -175,7 +179,9 @@ class PyPIRegistry:
                 resolved_version,
             )
 
-        downloads_30d, growth_rate = await self._fetch_downloads(package_name=name)
+        downloads_30d, growth_rate = await self._fetch_downloads(
+            package_name=name, version=resolved_version
+        )
 
         identity = PackageIdentity(
             name=name,
@@ -234,20 +240,43 @@ class PyPIRegistry:
 
     # ! Not Ideal for production, use bigquery instead
     async def _fetch_downloads(
-        self, package_name: str
+        self, package_name: str, version: str
     ) -> tuple[int | None, float | None]:
         """Queries pypistats for recent 30d download counts without fabricating unmeasured growth."""
-        stats_url = f"https://pypistats.org/api/packages/{package_name}/recent"
+        # stats_url = f"https://pypistats.org/api/packages/{package_name}/recent"
+
+        stats_url = (
+            f"{settings.PYPI_STATS_URL}/api/stats/pypi/{package_name}?version={version}"
+        )
+        logger.info(
+            "pypi downloads fetch start | %s",
+            fmt_fields(
+                {
+                    "package": package_name,
+                    "requested_version": version,
+                }
+            ),
+        )
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(stats_url)
                 if resp.status_code == 200:
-                    data = resp.json().get("data", {})
-                    last_month = data.get("last_month")
-                if last_month is not None:
-                    # Previous 30-day baseline is not provided in pypistats recent endpoint;
-                    # truthfully return None for growth rather than an ad-hoc approximation.
-                    return (int(last_month), None)
+                    data = resp.json().get("stats", [])
+                    download_count = data[0].get("download_count")
+
+                    logger.info(
+                        "pypi downloads | %s",
+                        fmt_fields(
+                            {
+                                "download_count": download_count,
+                                "requested_version": version,
+                            }
+                        ),
+                    )
+
+                if download_count is not None:
+                    # return None for growth rather than an ad-hoc approximation.
+                    return (int(download_count), None)
         except Exception:
             pass
         return (None, None)

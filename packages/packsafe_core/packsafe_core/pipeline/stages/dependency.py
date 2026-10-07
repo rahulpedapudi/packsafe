@@ -54,8 +54,7 @@ class DependencyStage:
             )
             if context.dependencies.status != "AVAILABLE":
                 span.degrade(
-                    "dependency tree unavailable: "
-                    f"{context.dependencies.status}"
+                    f"dependency tree unavailable: {context.dependencies.status}"
                 )
             if dependents_count is None:
                 span.degrade("dependents count unavailable from any source")

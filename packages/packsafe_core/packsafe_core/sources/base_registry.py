@@ -10,7 +10,7 @@ class PackageRegistry(Protocol):
     # Protocol means - anything that has exists() method with this compatible signature can be treated as a PackageRegistry
 
     async def exists(
-        self, client: httpx.AsyncClient, package: PackageRequest
+        self, package: PackageRequest
     ) -> tuple[
         bool,
         tuple[PackageIdentity, RegistryEvidence, EvidenceProvenance, str | None] | None,

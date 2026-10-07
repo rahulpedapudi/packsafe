@@ -10,6 +10,7 @@ class Settings:
 
     # sources
     PYPI_BASE_URL: str = "https://pypi.org/pypi"
+    PYPI_STATS_URL: str = "http://localhost:8000"
     OSV_BASE_URL: str = "https://api.osv.dev/v1/query"
     CISA_FEED_URL: str = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
     GITHUB_URL: str = "https://api.github.com/repos"
@@ -21,4 +22,3 @@ class Settings:
 
 
 settings = Settings()
-

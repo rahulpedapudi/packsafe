@@ -6,9 +6,14 @@ that has nothing to report says so in one line rather than disappearing, so a re
 tell "clean" apart from "not covered by this run".
 
 The two long sections - risk factors and policy gates - are collapsed to a summary by
-default. ``expand=True`` (the CLI's ``--all``) prints them in full up front; otherwise an
-interactive terminal is offered the detail once the report is done, and a
-non-interactive one (CI, a pipe, a script) never blocks and simply keeps the summary.
+default, and ``expand=True`` (the CLI's ``--all``) prints them in full.
+
+Nothing in this module asks a question. Reading a report must never stop and wait for a
+keypress: the same command then behaves differently depending on whether a human happened
+to be at the terminal, which is the worst property a security tool can have - the run that
+reviewed the most evidence would be the run that hung in CI. Every command is
+non-interactive except ``install``, which prompts because it is about to modify an
+environment and is asking permission to do so.
 """
 
 from __future__ import annotations
@@ -23,7 +28,6 @@ from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
 
-from ..prompts import confirm
 from .checks import build_checks, sort_findings
 from .layout import print_fields, section
 from .theme import (
@@ -106,31 +110,6 @@ def render_report(console: Console, outcome: AnalysisOutcome, *, expand: bool = 
     _render_gates(console, score, expanded=expand)
     _render_recommendation(console, score)
     _render_footer(console, score, context)
-
-    if not expand and _has_withheld_detail(score) and _offer_withheld_detail(console, score):
-        _render_risk_factors(console, score, expanded=True)
-        _render_gates(console, score, expanded=True)
-
-
-def _has_withheld_detail(score: ScoreResult) -> bool:
-    """True when something was left out of the report and could still be shown."""
-    return bool(score.findings) or any(g.triggered for g in score.gates)
-
-
-def _offer_withheld_detail(console: Console, score: ScoreResult) -> bool:
-    """Asks whether to print the collapsed detail now, but only if someone can answer.
-
-    Anything non-interactive - CI, a pipe, a script - must never stop and wait for a
-    keypress, so the prompt is skipped rather than defaulted.
-    """
-    hidden = []
-    if score.findings:
-        hidden.append(plural(len(score.findings), "risk factor"))
-    gates = sum(1 for g in score.gates if g.triggered)
-    if gates:
-        hidden.append(plural(gates, "gate reason"))
-
-    return confirm(console, f"Show {' and '.join(hidden)}?")
 
 
 # --------------------------------------------------------------------- header

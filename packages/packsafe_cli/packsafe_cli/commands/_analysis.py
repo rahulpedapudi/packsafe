@@ -48,6 +48,21 @@ ecosystem_option = Annotated[
     typer.Option("--ecosystem", "-e", help="Registry to look the package up in."),
 ]
 
+# Declared here for the same reason as the options above: `--explain` is a request for
+# something derived from a finished analysis, so any command that finishes an analysis can
+# offer it, and its wording must not drift between them.
+explain_option = Annotated[
+    bool,
+    typer.Option(
+        "--explain",
+        help=(
+            "Add a plain-language paragraph explaining why the score came out this way. "
+            "Costs a network call to the PackSafe service; the score itself is unchanged "
+            "if that call fails."
+        ),
+    ),
+]
+
 
 def run_analysis(
     console: Console,

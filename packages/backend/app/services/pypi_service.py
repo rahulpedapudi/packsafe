@@ -26,7 +26,7 @@ def get_stats(package: str, version: str, interval: int):
         FROM
         `bigquery-public-data.pypi.file_downloads`
         WHERE
-        project = '{package}' 
+        project = '{package}'
         AND file.version = '{version}'
         AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {interval} DAY)
         GROUP BY

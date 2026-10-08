@@ -3,6 +3,11 @@
 A security tool that installs packages must never hang a pipeline. Every prompt goes
 through here so the "can we ask?" decision is made in exactly one place: a terminal that
 can answer is the only place a question is allowed to exist.
+
+Only ``install`` prompts. It is about to modify an environment, so asking permission is
+the point rather than an obstacle. ``analyze`` and ``inspect`` never ask: they report, and
+a report that stops for a keypress would hang in CI and would produce different output
+depending on whether a human was watching.
 """
 
 from __future__ import annotations

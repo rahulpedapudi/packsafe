@@ -5,8 +5,10 @@ import typer
 from rich.console import Console
 
 from ..display.report import render_report
+from ..explain import explain_and_render
 from ._analysis import (
     ecosystem_option,
+    explain_option,
     log_verdict,
     run_analysis,
     version_option,
@@ -30,6 +32,7 @@ def analyze(
             help="List every risk factor and full gate reason instead of the collapsed summary.",
         ),
     ] = False,
+    explain: explain_option = False,
 ):
     """Analyze a package and report its supply-chain risk."""
     logger.info(f"Analyzing Package - {package_name}")
@@ -38,3 +41,9 @@ def analyze(
     log_verdict(outcome)
 
     render_report(console, outcome, expand=show_all)
+
+    # Deliberately last, and deliberately outside run_analysis. The report is complete and
+    # the verdict is already decided by this point, so an explanation that fails, hangs, or
+    # errors cannot change what was printed or the exit code the caller sees.
+    if explain:
+        explain_and_render(console, outcome)

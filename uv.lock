@@ -1148,7 +1148,7 @@ wheels = [
 
 [[package]]
 name = "packsafe"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/packsafe_cli" }
 dependencies = [
     { name = "packsafe-core" },
@@ -1198,7 +1198,7 @@ requires-dist = [
 
 [[package]]
 name = "packsafe-core"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/packsafe_core" }
 dependencies = [
     { name = "aiosqlite" },

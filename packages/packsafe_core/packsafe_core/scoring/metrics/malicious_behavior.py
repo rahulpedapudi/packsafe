@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from enum import Enum
+
 from ...models.scoring import MetricEvidence, MetricStatus
 from ...pipeline.context import AnalysisContext
 
@@ -13,10 +15,16 @@ def _metric_status(evidence_status: object) -> MetricStatus:
     """Maps an evidence status onto a metric status, defaulting to AVAILABLE."""
     if isinstance(evidence_status, MetricStatus):
         return evidence_status
-    try:
-        return MetricStatus(str(evidence_status).upper())
-    except ValueError:
-        return MetricStatus.AVAILABLE
+    # Read the member name off `.name` instead of going through `str()`: these enums
+    # mix in `str`, so str() still resolves to Enum.__str__ and yields
+    # "EvidenceStatus.MISSING", which never matches a MetricStatus member and used to
+    # fall through to AVAILABLE and report unavailable evidence as available.
+    name = (
+        evidence_status.name
+        if isinstance(evidence_status, Enum)
+        else str(evidence_status)
+    ).upper()
+    return MetricStatus[name] if hasattr(MetricStatus, name) else MetricStatus.AVAILABLE
 
 
 class IntegrityMetricsExtractor:

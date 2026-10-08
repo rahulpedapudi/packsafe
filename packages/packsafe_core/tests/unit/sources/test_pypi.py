@@ -1,17 +1,35 @@
-import pytest
-import httpx
-from datetime import datetime, UTC, timedelta
-from unittest.mock import AsyncMock, patch, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from packsafe_core.sources.pypi import PyPIRegistry
-from packsafe_core.models.package import PackageRequest, EcosystemType
-from packsafe_core.models.evidence import RegistryEvidence
+import httpx
+import pytest
 from packsafe_core.config import settings
+from packsafe_core.exceptions import RegistryAPIError
+from packsafe_core.models.package import EcosystemType, PackageRequest
+from packsafe_core.sources.pypi import PyPIRegistry
 
 
 @pytest.fixture
 def pypi_registry():
     return PyPIRegistry()
+
+
+@pytest.fixture
+def mock_downloads_api():
+    """Isolates the pypistats lookup so extract_metadata never touches the network.
+
+    extract_metadata awaits _fetch_downloads, which opens its own AsyncClient and hits
+    settings.PYPI_STATS_URL. Unpatched it would attempt a real connection (and the
+    failure is swallowed by a broad except, so the suite would still pass).
+    """
+    with patch("packsafe_core.sources.pypi.httpx.AsyncClient") as mock_client_class:
+        mock_client = AsyncMock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"stats": [{"download_count": 1234}]}
+        mock_client.get.return_value = mock_response
+        yield mock_client
 
 
 @pytest.fixture
@@ -101,8 +119,9 @@ class TestPyPIRegistry:
         )
         assert prov.source == "registry"
 
-        # Verify network call
-        mock_client.get.assert_called_once_with(
+        # Verify network call. extract_metadata also queries pypistats for download
+        # counts, so the metadata request is matched rather than being the only call.
+        mock_client.get.assert_any_call(
             f"{settings.PYPI_BASE_URL}/testpkg/json", timeout=5
         )
 
@@ -130,7 +149,11 @@ class TestPyPIRegistry:
         mock_client.get.side_effect = httpx.HTTPError("Network failure")
 
         req = PackageRequest(name="errorpkg")
-        with pytest.raises(httpx.HTTPError, match="Could not fetch the data from pypi"):
+        # exists() translates httpx's own error hierarchy into a PackSafe exception,
+        # so the transport error is re-raised as RegistryAPIError.
+        with pytest.raises(
+            RegistryAPIError, match="Could not fetch the data from pypi"
+        ):
             await pypi_registry.exists(req)
 
     def test_extract_repository_url(self, pypi_registry):
@@ -142,9 +165,12 @@ class TestPyPIRegistry:
         assert pypi_registry._extract_repository_url({"Other": "url6"}) is None
         assert pypi_registry._extract_repository_url({}) is None
 
-    def test_extract_metadata_minimal_missing(self, pypi_registry):
+    @pytest.mark.asyncio
+    async def test_extract_metadata_minimal_missing(
+        self, pypi_registry, mock_downloads_api
+    ):
         # Empty dictionary response
-        identity, reg_ev, prov, dist_url = pypi_registry.extract_metadata(
+        identity, reg_ev, prov, dist_url = await pypi_registry.extract_metadata(
             "minpkg", None, {}
         )
 
@@ -163,16 +189,20 @@ class TestPyPIRegistry:
 
         assert dist_url is None
 
-    def test_extract_metadata_bad_date(self, pypi_registry):
+    @pytest.mark.asyncio
+    async def test_extract_metadata_bad_date(self, pypi_registry, mock_downloads_api):
         data = {"releases": {"1.0": [{"upload_time_iso_8601": "invalid-date-string"}]}}
         # Should not crash
-        identity, reg_ev, prov, dist_url = pypi_registry.extract_metadata(
+        identity, reg_ev, prov, dist_url = await pypi_registry.extract_metadata(
             "bad-date-pkg", "1.0", data
         )
         assert reg_ev.release_count_1y is None
         assert reg_ev.published_at is None
 
-    def test_extract_metadata_no_dist_url(self, pypi_registry):
+    @pytest.mark.asyncio
+    async def test_extract_metadata_no_dist_url(
+        self, pypi_registry, mock_downloads_api
+    ):
         data = {
             "releases": {
                 "1.0": [
@@ -183,7 +213,7 @@ class TestPyPIRegistry:
                 ]
             }
         }
-        identity, reg_ev, prov, dist_url = pypi_registry.extract_metadata(
+        identity, reg_ev, prov, dist_url = await pypi_registry.extract_metadata(
             "nodistpkg", "1.0", data
         )
         assert dist_url is None
@@ -198,11 +228,12 @@ class TestPyPIRegistry:
             ("", None),
         ],
     )
-    def test_extract_metadata_maintainers(
-        self, pypi_registry, maintainer_str, expected_count
+    @pytest.mark.asyncio
+    async def test_extract_metadata_maintainers(
+        self, pypi_registry, mock_downloads_api, maintainer_str, expected_count
     ):
         data = {"info": {"maintainer": maintainer_str}}
-        _, reg_ev, _, _ = pypi_registry.extract_metadata("pkg", "1.0", data)
+        _, reg_ev, _, _ = await pypi_registry.extract_metadata("pkg", "1.0", data)
         assert reg_ev.maintainer_count == expected_count
 
     @pytest.mark.parametrize(

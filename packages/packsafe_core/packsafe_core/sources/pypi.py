@@ -115,25 +115,26 @@ class PyPIRegistry:
                 upload_str = file_info.get("upload_time_iso_8601") or file_info.get(
                     "upload_time"
                 )
+                if not upload_str:
+                    continue
 
-                if upload_str:
-                    try:
-                        dt = datetime.fromisoformat(upload_str)
-                        if dt.tzinfo is None:
-                            dt = dt.replace(tzinfo=UTC)
-                        if (
-                            ver not in version_timestamps
-                            or dt < version_timestamps[ver]
-                        ):
-                            version_timestamps[ver] = dt
-                    except Exception as e:
-                        logger.info(f"Failed to Parse upload date: {e}")
+                try:
+                    dt = datetime.fromisoformat(upload_str)
+                except Exception as e:
+                    logger.info(f"Failed to Parse upload date: {e}")
+                    continue
+
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
 
                 logger.debug(
-                    "pypi parse | release %s -> earliest upload %s",
+                    "pypi parse | release %s -> upload %s",
                     ver,
                     dt.isoformat(timespec="seconds"),
                 )
+
+                if ver not in version_timestamps or dt < version_timestamps[ver]:
+                    version_timestamps[ver] = dt
 
         # Calculate temporal metrics on DISTINCT versions
         one_year_ago = now - timedelta(days=365)

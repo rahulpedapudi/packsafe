@@ -6,9 +6,11 @@ license = "Apache-2.0"
 version = "0.1.1"
 requires-python = ">=3.11"
 dependencies = [
-    # Bounded so a future breaking core release cannot silently break every already
-    # installed CLI. Raise the ceiling deliberately, never by accident.
-    "packsafe-core>=0.1.0,<0.2.0",
+    # Floored at the first release carrying the Python 3.11 dataclass fix, so nobody
+    # resolving this CLI ends up paired with a core that cannot be imported on 3.11.
+    # The ceiling keeps a future breaking core from breaking already-installed CLIs;
+    # raise it deliberately.
+    "packsafe-core>=0.1.1,<0.2.0",
     "typer>=0.12",
     "rich>=13.0",
 ]
@@ -18,6 +20,8 @@ classifiers = [
   "Environment :: Console",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Security",
   "Typing :: Typed",
 ]

@@ -1,6 +1,9 @@
 [project]
 name = "packsafe-core"
 version = "0.1.1"
+description = "Evidence collection and deterministic security scoring for the PackSafe supply-chain gatekeeper."
+readme = "README.md"
+license = "Apache-2.0"
 requires-python = ">=3.11"
 dependencies = [
     "aiosqlite>=0.22.1",
@@ -14,6 +17,18 @@ dependencies = [
     # async engine requires; without it an installed wheel fails on import.
     "sqlalchemy[asyncio]>=2.0",
 ]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Security",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/rahulpedapudi/packsafe"
+Issues = "https://github.com/rahulpedapudi/packsafe/issues"
 
 [dependency-groups]
 dev = [

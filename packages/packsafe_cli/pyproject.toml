@@ -3,7 +3,7 @@ name = "packsafe"
 description = "Analyze and gate package installs on supply-chain risk."
 readme = "README.md"
 license = "Apache-2.0"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.11"
 dependencies = [
     # Bounded so a future breaking core release cannot silently break every already

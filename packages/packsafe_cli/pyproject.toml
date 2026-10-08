@@ -3,7 +3,7 @@ name = "packsafe"
 description = "Analyze and gate package installs on supply-chain risk."
 readme = "README.md"
 license = "Apache-2.0"
-version = "0.1.1"
+version = "0.1.2"
 requires-python = ">=3.11"
 dependencies = [
     # Floored at the first release carrying the Python 3.11 dataclass fix, so nobody

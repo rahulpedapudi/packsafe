@@ -8,6 +8,10 @@ Output goes to a rotating file rather than the console: the CLI renders its verd
 ``rich`` on stdout, and log records interleaved there would corrupt it. Progress is meant
 to be read from the log file while debugging.
 
+Logs are written to ``./.packsafe/logs/`` rather than the working directory itself, so a
+run leaves one tidy, ignorable folder next to the project instead of scattering log files
+across whatever directory the command happened to start in.
+
 Verbosity resolves in this order: explicit argument, ``PACKSAFE_LOG_LEVEL``, then INFO.
 """
 
@@ -18,7 +22,12 @@ import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-DEFAULT_LOG_FILENAME = "app-dev.log"
+#: Runtime state for the project the command was run against. Global config and the KEV
+#: cache live under ``settings.APP_ROOT``; this is the per-project counterpart, and the
+#: one that belongs in a repository's .gitignore.
+PROJECT_DIRNAME = ".packsafe"
+LOG_DIRNAME = "logs"
+DEFAULT_LOG_FILENAME = "packsafe.log"
 
 LOG_LEVEL_ENV = "PACKSAFE_LOG_LEVEL"
 LOG_FILE_ENV = "PACKSAFE_LOG_FILE"
@@ -72,11 +81,25 @@ def resolve_level(level: int | str | None = None) -> int:
     return resolved
 
 
+def project_log_dir(cwd: str | Path | None = None) -> Path:
+    """Returns the per-project log directory, without creating it."""
+    return Path(cwd or Path.cwd()) / PROJECT_DIRNAME / LOG_DIRNAME
+
+
+def default_log_file(cwd: str | Path | None = None) -> Path:
+    """The default log destination: ``./.packsafe/logs/packsafe.log``.
+
+    Resolved against the working directory at call time rather than baked in at import,
+    so the path reflects the project the command was actually run against.
+    """
+    return project_log_dir(cwd) / DEFAULT_LOG_FILENAME
+
+
 def resolve_log_file(log_file: str | Path | None = None) -> Path:
     """Resolves the log destination from an argument, the environment, then the default."""
     if log_file:
         return Path(log_file)
-    return Path(os.environ.get(LOG_FILE_ENV) or DEFAULT_LOG_FILENAME)
+    return Path(os.environ.get(LOG_FILE_ENV) or default_log_file())
 
 
 def setup_logging(
@@ -104,7 +127,9 @@ def setup_logging(
         _configured_file = target
 
         try:
-            if target.parent and not target.parent.exists():
+            # Creates .packsafe/logs/ on first run. mkdir is best-effort: a read-only or
+            # otherwise unwritable destination must not take the CLI down.
+            if target.parent:
                 target.parent.mkdir(parents=True, exist_ok=True)
             handler = RotatingFileHandler(
                 target,

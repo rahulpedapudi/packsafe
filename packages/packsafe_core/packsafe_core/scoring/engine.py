@@ -425,7 +425,9 @@ class ScoreEngine:
             final_score=final_score,
             base_score=base_score,
             risk_level=risk,
+
             decision=decision,
+            
             confidence=confidence,
             score_risk_level=score_risk,
             vulnerability_risk_level=vuln_risk,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
@@ -29,7 +29,11 @@ class NetworkContext:
 
     receivers: frozenset[str] = frozenset()
     bare_names: frozenset[str] = frozenset()
-    aliases: Mapping[str, str] = MappingProxyType({})
+    # A default_factory rather than MappingProxyType({}) inline: Python 3.11 rejects an
+    # unhashable default on a dataclass field, and a mappingproxy counts as unhashable
+    # there. 3.12+ relaxed the check, so the bug only shows up on the oldest supported
+    # interpreter - exactly the one least likely to be in the local test matrix.
+    aliases: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
 
 
 EMPTY_NETWORK_CONTEXT = NetworkContext()

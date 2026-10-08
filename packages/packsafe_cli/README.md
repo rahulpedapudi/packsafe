@@ -19,7 +19,7 @@ uvx packsafe analyze requests
 ```bash
 packsafe analyze requests              # verdict: score, checks, risk factors
 packsafe inspect django -V 5.2.8      # every piece of evidence, with provenance
-packsafe install --pip requests       # gate, then install
+packsafe install --pip requests       # gate, then install into the current environment
 packsafe install --uv requests        # same, via uv
 ```
 
@@ -33,7 +33,21 @@ asks before installing one with warnings, and installs silently when it is safe:
 | Blocked by policy | Refused, exit code 4 |
 
 Exit codes: `0` success · `1` not found or internal error · `2` registry unreachable ·
-`3` bad package data · `4` blocked by policy · `5` the package manager failed.
+`3` bad package data · `4` blocked by policy · `5` no install target, or the package
+manager failed.
+
+### Where an install lands
+
+Never a global environment. PackSafe installs into the environment belonging to the
+directory you ran the command in, in this order of precedence:
+
+1. `--python /path/to/env` — an environment directory or an interpreter
+2. the active virtualenv (`$VIRTUAL_ENV`)
+3. `./.venv`
+
+With none of those present it stops and tells you, rather than installing somewhere you
+did not ask for. Add `.packsafe/` to your `.gitignore` to keep the run directory out of
+version control.
 
 ## What it looks at
 
@@ -44,6 +58,16 @@ them, so a number is never presented without a reason.
 
 Every analysis records provenance: which source, which URL, when it was fetched, and the
 archive hash the verdict was computed against.
+
+### Logs
+
+Diagnostics go to `./.packsafe/logs/packsafe.log`, never the working directory itself.
+Override with `--log-file PATH` or `PACKSAFE_LOG_FILE`. It is a global option, so it
+goes before the subcommand:
+
+```bash
+packsafe --log-file /tmp/packsafe.log analyze requests
+```
 
 ## Under the hood
 

@@ -101,7 +101,7 @@ def render_report(console: Console, outcome: AnalysisOutcome, *, expand: bool = 
     console.print()
     _render_header(console, score, context)
     _render_verdict(console, score)
-    _render_checks(console, score, context)
+    render_checks(console, score, context)
     _render_risk_factors(console, score, expanded=expand)
     _render_gates(console, score, expanded=expand)
     _render_recommendation(console, score)
@@ -192,7 +192,13 @@ def _score_bar(console: Console, score: float, style: str) -> Text:
 # --------------------------------------------------------------------- checks
 
 
-def _render_checks(console: Console, score: ScoreResult, ctx: AnalysisContext) -> None:
+def render_checks(console: Console, score: ScoreResult, ctx: AnalysisContext) -> None:
+    """Prints the per-check verdict block.
+
+    Public because `install` shows it too: a gate that refuses without showing its
+    evidence asks for blind trust, and a gate that prompts for confirmation has to give
+    the reader something to confirm against.
+    """
     rows = build_checks(score, ctx)
     if not rows:
         return

@@ -60,9 +60,7 @@ def evaluate(
         )
 
     if blockers:
-        return InstallGate(
-            Decision.BLOCK, "Blocked by PackSafe policy", tuple(blockers)
-        )
+        return InstallGate(Decision.BLOCK, "Blocked by PackSafe policy", tuple(blockers))
 
     if score.decision is Decision.BLOCK:
         return InstallGate(
@@ -93,9 +91,7 @@ def _finding_reasons(score: ScoreResult) -> list[str]:
     """
     findings = score.findings
     if not findings:
-        return [
-            f"safety score {score.final_score:.0f}/100 with no clean bill of health"
-        ]
+        return [f"safety score {score.final_score:.0f}/100 with no clean bill of health"]
 
     worst = max(findings, key=lambda f: SeverityRank.from_str(f.severity))
     reasons = [
@@ -104,9 +100,7 @@ def _finding_reasons(score: ScoreResult) -> list[str]:
 
     # One line per distinct gate. Listing a gate once per finding that tripped it says
     # nothing the count in the line above does not already say.
-    for gate_id in dict.fromkeys(
-        f.gate_triggered for f in findings if f.gate_triggered
-    ):
+    for gate_id in dict.fromkeys(f.gate_triggered for f in findings if f.gate_triggered):
         triggered = sum(1 for f in findings if f.gate_triggered == gate_id)
         count = f" ({triggered} findings)" if triggered > 1 else ""
         reasons.append(f"gate {gate_id}{count}")

@@ -6,6 +6,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from ..display.report import render_checks
 from ..exit_codes import EXIT_BLOCKED, EXIT_INSTALL_FAILED
 from ..install_gate import evaluate
 from ..installer import (
@@ -14,6 +15,7 @@ from ..installer import (
     build_command,
     requirement,
     resolve,
+    resolve_target,
     run,
 )
 from ..prompts import can_prompt, confirm
@@ -51,18 +53,36 @@ def install(
             help="Refuse to install below this safety score (0-100). Tightens the policy.",
         ),
     ] = None,
+    python: Annotated[
+        str | None,
+        typer.Option(
+            "--python",
+            help=(
+                "Environment directory or interpreter to install into. "
+                "Defaults to the active virtualenv, then ./.venv."
+            ),
+        ),
+    ] = None,
 ):
     """Analyze a package, then install it only if it is safe to."""
     manager = _select_manager(use_pip, use_uv)
     specifier = requirement(package_name, version)
 
-    # Resolve the toolchain before spending a minute on the analysis: failing to find pip
-    # should not come after a verdict the user was already shown.
+    # Resolve the target environment and the toolchain before spending a minute on the
+    # analysis: "no environment here" should not come after a verdict the user was shown.
     try:
-        installer = resolve(manager)
+        target = resolve_target(python)
+        installer = resolve(manager, target)
     except InstallerError as e:
-        _fail(str(e), "Package Manager Missing")
+        _fail(str(e), "No Install Target")
         raise typer.Exit(code=EXIT_INSTALL_FAILED) from e
+
+    logger.info(
+        "install resolved | manager=%s target=%s prefix=%s",
+        manager.value,
+        target.description,
+        " ".join(installer.argv_prefix),
+    )
 
     if installer.note:
         console.print(f"[yellow]![/yellow] {installer.note}")
@@ -80,6 +100,10 @@ def install(
         score.final_score,
         len(gate.blockers),
     )
+
+    # Show the checks before the verdict, not after: the evidence is what makes the
+    # decision below reviewable, and the two confirmation paths need it in view anyway.
+    render_checks(console, score, outcome.context)
 
     if gate.blocked:
         _render_blocked(score, gate, specifier)
@@ -185,9 +209,7 @@ def _render_blocked(score, gate, specifier: str) -> None:
     console.print(_panel(lines, "Install Blocked", "red"))
 
 
-def _render_approved_with_warnings(
-    score, gate, specifier: str, assume_yes: bool
-) -> None:
+def _render_approved_with_warnings(score, gate, specifier: str, assume_yes: bool) -> None:
     """States plainly what is being waved through, before the install runs.
 
     Approving a warning is the one moment where the user overrides the tool's judgement,
@@ -229,7 +251,8 @@ def _render_installing(score, specifier: str, installer) -> None:
     console.print(
         _panel(
             f"Installing [bold]{specifier}[/bold] with {installer.label} "
-            f"(safety score {score.final_score:.0f}/100, {score.risk_level.value}).",
+            f"(safety score {score.final_score:.0f}/100, {score.risk_level.value}).\n"
+            f"[dim]Target: {installer.target.description}[/dim]",
             "Install Cleared",
             style,
         )

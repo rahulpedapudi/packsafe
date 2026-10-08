@@ -1,6 +1,6 @@
 [project]
 name = "packsafe-core"
-version = "0.1.1"
+version = "0.1.2"
 description = "Evidence collection and deterministic security scoring for the PackSafe supply-chain gatekeeper."
 readme = "README.md"
 license = "Apache-2.0"

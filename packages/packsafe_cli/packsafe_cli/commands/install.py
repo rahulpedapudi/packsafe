@@ -13,6 +13,7 @@ from ..installer import (
     InstallerError,
     PackageManager,
     build_command,
+    is_uv_project,
     requirement,
     resolve,
     resolve_target,
@@ -63,6 +64,17 @@ def install(
             ),
         ),
     ] = None,
+    declare: Annotated[
+        bool,
+        typer.Option(
+            "--add",
+            help=(
+                "Record the dependency in pyproject.toml and uv.lock as well as "
+                "installing it (uv only). Without this the install is environment-only "
+                "and `uv sync` will remove it."
+            ),
+        ),
+    ] = False,
 ):
     """Analyze a package, then install it only if it is safe to."""
     manager = _select_manager(use_pip, use_uv)
@@ -72,10 +84,15 @@ def install(
     # analysis: "no environment here" should not come after a verdict the user was shown.
     try:
         target = resolve_target(python)
-        installer = resolve(manager, target)
+        installer = resolve(manager, target, declare=declare)
     except InstallerError as e:
         _fail(str(e), "No Install Target")
         raise typer.Exit(code=EXIT_INSTALL_FAILED) from e
+
+    # An environment-only install inside a uv project is a trap: `uv sync` reconciles
+    # the environment to the lockfile and silently removes anything undeclared. Say so
+    # before the user discovers it on a later sync.
+    undeclared_risk = not declare and manager is PackageManager.UV and is_uv_project()
 
     logger.info(
         "install resolved | manager=%s target=%s prefix=%s",
@@ -128,6 +145,9 @@ def install(
         raise typer.Exit(code=EXIT_INSTALL_FAILED)
 
     _render_installed(specifier, installer.label)
+
+    if undeclared_risk:
+        _warn_undeclared(specifier)
 
 
 # ----------------------------------------------------------------- decisions
@@ -262,6 +282,21 @@ def _render_installing(score, specifier: str, installer) -> None:
 def _render_installed(specifier: str, manager_label: str) -> None:
     console.print()
     console.print(f"[bold green]✓[/bold green] Installed [bold]{specifier}[/bold].")
+
+
+def _warn_undeclared(specifier: str) -> None:
+    """Says the install is not recorded anywhere, before `uv sync` erases it.
+
+    The environment now holds the package and no file mentions it, so the next
+    `uv sync` will reconcile the environment back to the lockfile and uninstall it.
+    That failure looks unrelated to this command, which is why it is worth a warning.
+    """
+    console.print()
+    console.print(
+        f"[yellow]![/yellow] [bold]{specifier}[/bold] is installed but not declared in "
+        f"pyproject.toml, so [bold]uv sync[/bold] will remove it.\n"
+        f"  [dim]Declare it with:[/dim] packsafe install --uv --add {specifier}"
+    )
 
 
 def _fail(message: str, title: str) -> None:

@@ -27,10 +27,11 @@ from rich.console import Console
 
 logger = logging.getLogger(__name__)
 
-# uv's pip-compatible interface targets an environment, which is the closest equivalent
-# to `pip install`. `uv add` would instead edit the project's pyproject.toml, a different
-# operation with its own tradeoffs.
+# `uv pip install` is the closest equivalent to `pip install`: it targets an environment
+# and declares nothing. `uv add` additionally records the dependency in pyproject.toml and
+# the lockfile, which is the behaviour a project usually wants and pip cannot offer.
 UV_SUBCOMMAND = ("pip", "install")
+UV_ADD_SUBCOMMAND = ("add",)
 
 INSTALL_SUBCOMMAND = ("install",)
 
@@ -163,17 +164,72 @@ def _interpreter(env: str | Path) -> Path:
     )
 
 
-def resolve(manager: PackageManager, target: Target) -> Installer:
-    """Builds the argv prefix for this manager, targeting the chosen environment."""
+def resolve(manager: PackageManager, target: Target, *, declare: bool = False) -> Installer:
+    """Builds the argv prefix for this manager, targeting the chosen environment.
+
+    ``declare`` switches uv to ``uv add``, which records the dependency in pyproject.toml
+    and the lockfile as well as installing it. Without it, uv behaves exactly like pip:
+    the environment changes and no file does.
+    """
     if manager is PackageManager.UV:
         executable = require_on_path(manager)
+
+        if declare:
+            # `uv add` owns its own target: the project environment it finds in the cwd.
+            # Passing --python would be rejected, so the target is only reported, not
+            # imposed.
+            require_uv_project()
+            return Installer(manager, target, (executable, *UV_ADD_SUBCOMMAND))
+
         return Installer(
             manager,
             target,
             (executable, *UV_SUBCOMMAND, "--python", str(target.python)),
         )
 
+    if declare:
+        raise InstallerError(
+            "--add is a uv feature; pip has no equivalent. "
+            "Use `pip install` and declare the dependency yourself, "
+            "or switch to --uv --add."
+        )
+
     return _resolve_pip(target)
+
+
+def require_uv_project(cwd: Path | None = None) -> Path:
+    """Ensures there is a uv project here, for the operations that require one."""
+    base = cwd or Path.cwd()
+    manifest = base / "pyproject.toml"
+
+    if not manifest.is_file():
+        raise InstallerError(
+            f"No pyproject.toml in {base}, so there is nothing to declare the "
+            f"dependency in. Re-run without --add to install into the environment only."
+        )
+
+    if "[project]" not in manifest.read_text(encoding="utf-8"):
+        raise InstallerError(
+            f"{manifest} has no [project] table, so uv cannot add a dependency to it."
+        )
+
+    return manifest
+
+
+def is_uv_project(cwd: Path | None = None) -> bool:
+    """True when the working directory is a uv-managed project.
+
+    Used to warn that an environment-only install will not survive `uv sync`, which
+    reconciles the environment to the lockfile and removes anything undeclared.
+    """
+    base = cwd or Path.cwd()
+    manifest = base / "pyproject.toml"
+    if not manifest.is_file():
+        return False
+    try:
+        return "[project]" in manifest.read_text(encoding="utf-8")
+    except OSError:
+        return False
 
 
 def _resolve_pip(target: Target) -> Installer:
